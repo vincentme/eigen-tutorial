@@ -1,0 +1,22 @@
+[book]
+authors = ["Eigen Tutorial"]
+language = "zh-CN"
+src = "src"
+title = "Eigen 完全教程：从入门到精通"
+
+[build]
+build-dir = "book"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://gitlab.com/vincentme/eigen-tutorial"
+edit-url-template = "https://gitlab.com/vincentme/eigen-tutorial/-/edit/master/{path}"
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.print]
+enable = true
+page-break = true

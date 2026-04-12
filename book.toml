@@ -10,8 +10,8 @@ build-dir = "book"
 [output.html]
 default-theme = "light"
 preferred-dark-theme = "navy"
-git-repository-url = "https://vincentme.github.io/eigen-tutorial"
-edit-url-template = "https://vincentme.github.io/eigen-tutorial/-/edit/master/{path}"
+git-repository-url = "https://github.com/vincentme/eigen-tutorial"
+edit-url-template = "https://github.com/vincentme/eigen-tutorial/-/edit/master/{path}"
 
 [output.html.fold]
 enable = true

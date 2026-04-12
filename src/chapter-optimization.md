@@ -91,12 +91,14 @@ Eigen::Matrix<double, N, 1> compute() {
     // ...
 }
 
-// 或者使用最大尺寸模板
+// 或者使用“动态大小 + 编译期最大上限”
+// 这种类型仍然是动态尺寸，只是给出一个编译期上限，便于优化小尺寸场景
 template<int MaxN>
-using VectorMax = Eigen::Matrix<double, MaxN, 1, 0, MaxN, 1>;
+using VectorMax = Eigen::Matrix<double, Eigen::Dynamic, 1, 0, MaxN, 1>;
 
 void compute(int n) {
-    VectorMax<100> v(n);  // n <= 100时使用栈，否则堆
+    assert(n <= 100 && "n 超过编译期最大上限");
+    VectorMax<100> v(n);  // 运行时长度为 n，最大不超过 100
 }
 ```
 
@@ -170,27 +172,28 @@ MatrixXd C = sum;  // 此时才真正计算（赋值时触发求值）
 **情况1：显式转换类型**
 
 ```cpp
-MatrixXd A, B;
+MatrixXd A, B, C;
 VectorXd v;
 
 // 会创建临时对象
 MatrixXd temp = A * B;        // 显式创建临时对象
-v = (A * B).col(0);           // A*B的结果需要存储
+v = (A * B).col(0);           // A*B的结果需要先计算出来
 
-// 避免临时对象
-v.noalias() = A * B;          // 使用noalias()优化
+// 避免不必要的临时对象
+C.noalias() = A * B;          // 当C与A/B不重叠时可使用noalias()
 ```
 
 **情况2：表达式过于复杂**
 
 ```cpp
-// 过于复杂的表达式可能导致编译器生成临时对象
-MatrixXd D = A * B + C * D * E + F.transpose() * G;
+// 复杂表达式不一定更慢，但当存在子表达式复用、别名风险或可读性问题时，
+// 显式拆分通常更容易分析和调优
+MatrixXd result = A * B + C * D * E + F.transpose() * G;
 
-// 建议拆分
-MatrixXd temp1 = C * D;
+// 如果需要复用中间结果，可以显式求值
+MatrixXd temp1 = (C * D).eval();
 MatrixXd temp2 = temp1 * E;
-MatrixXd D = A * B + temp2 + F.transpose() * G;
+MatrixXd result2 = A * B + temp2 + F.transpose() * G;
 ```
 
 **情况3：使用auto导致的陷阱**
@@ -434,7 +437,7 @@ Eigen::setNbThreads(1);
 
 ## 8.7 CUDA支持
 
-Eigen 5.0 支持在CUDA内核中使用固定大小的矩阵和向量。
+Eigen 早已支持在 CUDA 内核中使用固定大小的矩阵和向量；这并不是 Eigen 5.0 才新增的能力。
 
 **使用示例**：
 
@@ -451,9 +454,10 @@ __global__ void matrix_multiply_kernel(float* result, const float* a, const floa
 }
 
 // 注意：
-// 1. 仅支持固定大小矩阵（Matrix3f, Vector4d等）
-// 2. 动态大小矩阵不支持
-// 3. 需要使用Eigen::Map映射GPU内存
+// 1. 适合固定大小矩阵（如 Matrix3f、Vector4d 等）
+// 2. 动态大小对象通常不适合直接在 kernel 中这样使用
+// 3. 需要使用 Eigen::Map 映射设备内存
+// 4. 在 .cu 文件中通常需要关闭主机端 SIMD 向量化，并注意索引类型与编译器兼容性
 ```
 
 **编译配置**：

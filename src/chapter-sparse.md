@@ -106,7 +106,7 @@ int main() {
 }
 ```
 
-### 5.6.3 稀疏矩阵运算
+### 7.2.1 稀疏矩阵运算
 
 ```cpp
 #include <Eigen/Sparse>
@@ -165,7 +165,7 @@ int main() {
 }
 ```
 
-### 5.6.4 稀疏线性求解器
+### 7.2.2 稀疏线性求解器
 
 ```cpp
 #include <Eigen/Sparse>
@@ -260,17 +260,17 @@ int main() {
 }
 ```
 
-### 5.6.5 稀疏求解器选择指南
+### 7.2.3 稀疏求解器选择指南
 
-| 求解器              | 矩阵类型   | 内存 | 速度 | 稳定性 | 推荐场景         |
-| ------------------- | ---------- | ---- | ---- | ------ | ---------------- |
-| `SimplicialLLT`     | 对称正定   | 中   | 快   | 中     | 结构力学、热传导 |
-| `SimplicialLDLT`    | 对称半正定 | 中   | 快   | 高     | 更稳定的Cholesky |
-| `SparseLU`          | 任意方阵   | 高   | 中   | 高     | 通用求解器       |
-| `SparseQR`          | 任意矩阵   | 高   | 慢   | 最高   | 最小二乘、秩亏   |
-| `ConjugateGradient` | 对称正定   | 低   | 快   | 中     | 大规模问题       |
-| `BiCGSTAB`          | 非对称     | 低   | 中   | 中     | 一般非对称问题   |
-| `GMRES`             | 非对称     | 高   | 可控 | 高     | 困难问题         |
+| 求解器                         | 矩阵类型   | 内存 | 速度 | 稳定性 | 推荐场景                  |
+| ------------------------------ | ---------- | ---- | ---- | ------ | ------------------------- |
+| `SimplicialLLT`                | 对称正定   | 中   | 快   | 中     | 结构力学、热传导          |
+| `SimplicialLDLT`               | 对称半正定 | 中   | 快   | 高     | 更稳定的Cholesky          |
+| `SparseLU`                     | 任意方阵   | 高   | 中   | 高     | 通用求解器                |
+| `SparseQR`                     | 任意矩阵   | 高   | 慢   | 高     | 最小二乘、秩亏            |
+| `ConjugateGradient`            | 对称正定   | 低   | 快   | 中     | 大规模对称正定问题        |
+| `BiCGSTAB`                     | 非对称方阵 | 低   | 中   | 中     | 一般非对称方程组          |
+| `LeastSquaresConjugateGradient` | 矩形/超定  | 低   | 中   | 中     | 稀疏最小二乘问题          |
 
 **决策流程**：
 
@@ -326,14 +326,14 @@ int main() {
     std::cout << "  估计误差: " << cg.error() << "\n";
     std::cout << "  状态: " << (cg.info() == Eigen::Success ? "成功" : "失败") << "\n\n";
     
-    // ========== 最小二乘QR法（LSQR）==========
-    // 适用于最小二乘问题
-    Eigen::LeastSquaresConjugateGradient<Eigen::SparseMatrix<double>> lsqr;
-    lsqr.compute(A);
-    x = lsqr.solve(b);
+    // ========== 最小二乘共轭梯度法（LeastSquaresConjugateGradient）==========
+    // 适用于稀疏最小二乘问题
+    Eigen::LeastSquaresConjugateGradient<Eigen::SparseMatrix<double>> lscg;
+    lscg.compute(A);
+    x = lscg.solve(b);
     
-    std::cout << "最小二乘CG:\n";
-    std::cout << "  迭代次数: " << lsqr.iterations() << "\n\n";
+    std::cout << "LeastSquaresConjugateGradient:\n";
+    std::cout << "  迭代次数: " << lscg.iterations() << "\n\n";
     
     // ========== 双共轭梯度稳定法（BiCGSTAB）==========
     // 适用于非对称矩阵
@@ -362,13 +362,11 @@ int main() {
 
 ### 迭代求解器选择指南
 
-| 求解器              | 适用矩阵类型 | 内存占用         | 收敛速度 | 推荐场景       |
-| ------------------- | ------------ | ---------------- | -------- | -------------- |
-| `ConjugateGradient` | 对称正定     | 低               | 快       | 椭圆型PDE      |
-| `BiCGSTAB`          | 非对称       | 低               | 中等     | 一般非对称问题 |
-| `GMRES`             | 非对称       | 高（随迭代增长） | 可控     | 困难问题       |
-| `LeastSquaresCG`    | 矩形/超定    | 低               | 中等     | 最小二乘问题   |
-| `MINRES`            | 对称不定     | 低               | 中等     | 对称不定矩阵   |
+| 求解器                         | 适用矩阵类型 | 内存占用 | 收敛速度 | 推荐场景         |
+| ------------------------------ | ------------ | -------- | -------- | ---------------- |
+| `ConjugateGradient`            | 对称正定     | 低       | 快       | 椭圆型PDE        |
+| `BiCGSTAB`                     | 非对称方阵   | 低       | 中等     | 一般非对称问题   |
+| `LeastSquaresConjugateGradient` | 矩形/超定    | 低       | 中等     | 稀疏最小二乘问题 |
 
 ### 预处理技术
 

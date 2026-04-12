@@ -1,8 +1,8 @@
 # Summary
 
 - [简介](./intro.md)
-- [基础篇：Eigen简介与快速入门](./chapter-basics.md)
 - [安装篇：环境配置](./chapter-installation.md)
+- [基础篇：Eigen简介与快速入门](./chapter-basics.md)
 - [矩阵基础篇：声明与基本运算](./chapter-matrix-basics.md)
 - [高级操作篇：块操作与内存映射](./chapter-advanced-operations.md)
 - [线性代数篇：矩阵分解与求解](./chapter-linear-algebra.md)
@@ -11,6 +11,6 @@
 - [优化篇：性能调优技巧](./chapter-optimization.md)
 - [调试与排错篇](./chapter-debugging.md)
 - [实战案例篇](./chapter-practice.md)
-- [附录A：Eigen 5.0破坏性变更说明](./appendix-breaking-changes.md)
-- [附录B：Eigen 5.0新特性](./appendix-new-features.md)
-- [附录C：API快速索引](./appendix-api-reference.md)
+- [附录 A：Eigen 5.0 破坏性变更说明](./appendix-breaking-changes.md)
+- [附录 B：Eigen 5.0 新特性](./appendix-new-features.md)
+- [附录 C：API 快速索引](./appendix-api-reference.md)

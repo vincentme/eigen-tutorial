@@ -1,139 +1,201 @@
-## A. Eigen 5.0破坏性变更说明 
+## A. Eigen 5.0 破坏性变更说明
 
-### A.1 版本号变更
+本附录只收录**有明确版本依据**、且对 Eigen 3.4 用户迁移到 Eigen 5.0/5.0.1 有实际影响的变更。这里重点关注：
+- 版本号语义变化
+- 最低 C++ 标准变化
+- API 行为变化
+- 明确的迁移注意事项
 
-Eigen 5.0 采用了**语义化版本控制（Semantic Versioning）**。
+### A.1 版本号语义变更：从 `WORLD.MAJOR.MINOR` 到 `MAJOR.MINOR.PATCH`
 
-**重要说明**：Eigen的版本号格式比较特殊，WORLD版本号保持为3，不会改变。
+Eigen 5.0 开始采用**语义化版本控制（Semantic Versioning）**。  
+这意味着：
 
-| 版本      | 版本号格式 | 说明                      |
-| --------- | ---------- | ------------------------- |
-| Eigen 3.4 | 3.4.0      | 旧格式：WORLD.MAJOR.MINOR |
-| Eigen 5.0 | 3.5.0      | 新格式：WORLD.MAJOR.MINOR |
-|           |            | 但对外称为 Eigen 5.0      |
+- **对外发布版本号**使用 `MAJOR.MINOR.PATCH`
+- **历史兼容宏**中的 `EIGEN_WORLD_VERSION` 仍然保留为 `3`
 
-**版本号含义**：
-- **WORLD（世界版本号）**：保持为3，表示Eigen 3.x系列
-- **MAJOR（主版本号）**：包含破坏性API变更（从4跳到5）
-- **MINOR（次版本号）**：新增功能，向后兼容
-- **PATCH（补丁号）**：Bug修复，向后兼容
+因此：
 
-**代码中的版本号**：
+| 发布版本 | `EIGEN_WORLD_VERSION` | `EIGEN_MAJOR_VERSION` | `EIGEN_MINOR_VERSION` | `EIGEN_PATCH_VERSION` |
+| -------- | --------------------- | --------------------- | --------------------- | --------------------- |
+| Eigen 3.4.0 | 3 | 4 | 0 | - |
+| Eigen 5.0.0 | 3 | 5 | 0 | 0 |
+| Eigen 5.0.1 | 3 | 5 | 0 | 1 |
+
+**关键点**：
+- 对外应写 **Eigen 5.0.1**
+- 不应把 Eigen 5.0.1 理解成 `3.5.1`
+- `WORLD=3` 只是历史兼容信息，不再表示对外主版本号
+
+**推荐的版本输出方式**：
 
 ```cpp
 #include <Eigen/Core>
+#include <iostream>
 
-// Eigen 5.0.1
-std::cout << EIGEN_WORLD_VERSION << "."    // 输出: 3
-          << EIGEN_MAJOR_VERSION << "."     // 输出: 5
-          << EIGEN_MINOR_VERSION << "\n";   // 输出: 1
+int main() {
+    std::cout << "Eigen version: "
+              << EIGEN_MAJOR_VERSION << "."
+              << EIGEN_MINOR_VERSION << "."
+              << EIGEN_PATCH_VERSION << "\n";
 
-// 注意：EIGEN_WORLD_VERSION是3，不是5
-// 对外宣传的"Eigen 5.0"对应的是MAJOR版本号
+    std::cout << "Legacy world version: "
+              << EIGEN_WORLD_VERSION << "\n";
+}
 ```
 
-### A.2 C++标准要求
+### A.2 C++ 标准要求提升
 
-| 版本            | 最低C++标准 | 推荐C++标准 |
-| --------------- | ----------- | ----------- |
-| Eigen 3.4.x     | C++11       | C++11/14    |
-| **Eigen 5.0.x** | **C++14**   | **C++17**   |
+Eigen 5.x 要求至少使用 **C++14**。
 
-### A.3 placeholders命名空间变更
+| 版本 | 最低 C++ 标准 |
+| --- | --- |
+| Eigen 3.4.x | C++11 |
+| Eigen 5.0.x | C++14 |
 
-`Eigen::last` 和 `Eigen::all` 被移动到 `Eigen::placeholders` 命名空间。
+**迁移建议**：
+- 使用 GNU/Clang 时至少加上 `-std=c++14`
+- 如果教程或项目中使用了结构化绑定等特性，则应使用 `-std=c++17`
+
+### A.3 `Eigen::all` / `Eigen::last` 命名空间变更
+
+由于与其他项目发生命名冲突，Eigen 5.0 将：
+
+- `Eigen::all`
+- `Eigen::last`
+
+移动到了：
+
+- `Eigen::placeholders::all`
+- `Eigen::placeholders::last`
+
+**旧写法（3.4 常见写法）**：
 
 ```cpp
-// 旧代码 (Eigen 3.4) - 错误
-Eigen::VectorXd v2 = v(Eigen::seq(0, Eigen::last, 2));
-
-// 新代码 (Eigen 5.0) - 推荐
-using namespace Eigen::placeholders;
+using namespace Eigen;
 Eigen::VectorXd v2 = v(seq(0, last, 2));
 ```
 
-### A.4 SVD运行时选项改为编译时模板参数
-
-`BDCSVD` 和 `JacobiSVD` 的计算选项从运行时构造函数参数改为编译时模板参数。
+**Eigen 5.0 中更稳妥的写法**：
 
 ```cpp
-// 旧代码 (Eigen 3.4) - 已弃用
-Eigen::BDCSVD<Eigen::MatrixXd> svd(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
+using namespace Eigen;
+using namespace Eigen::placeholders;
 
-// 新代码 (Eigen 5.0) - 推荐
+Eigen::VectorXd v2 = v(seq(0, last, 2));
+```
+
+如果你不想导入整个 `Eigen` 命名空间，也可以显式写完整限定名。
+
+### A.4 SVD 运行时选项已弃用，推荐改用编译时选项
+
+Eigen 5.0 的一个重要变化是：
+
+- **运行时 SVD 选项（thin/full U/V）已弃用**
+- **推荐改用编译时模板参数**
+
+这意味着旧写法并不是“突然不存在”，而是**不再推荐**。
+
+**旧写法**：
+
+```cpp
+Eigen::BDCSVD<Eigen::MatrixXd> svd(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
+```
+
+**推荐写法**：
+
+```cpp
 Eigen::BDCSVD<Eigen::MatrixXd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(A);
 ```
 
-### A.5 其他重要变更
-
-- **aligned_allocator**：不再继承自 `std::allocator`
-- **欧拉角**：返回更规范的形式，数值可能与旧版本不同
-- **随机数生成器**：行为可能与旧版本不同
-- **LGPL许可代码**：已被移除
-- **BLAS返回类型**：从 `int` 改为 `void`
-
-### A.6 已移除的功能
-
-**1. `usingnamespace` 已被移除**
+`JacobiSVD` 同理：
 
 ```cpp
-// 旧代码 (Eigen 3.4) - 已移除
-usingnamespace Eigen;
-
-// 新代码 (Eigen 5.0) - 使用标准using
-using namespace Eigen;
+Eigen::JacobiSVD<Eigen::MatrixXd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(A);
 ```
 
-**2. `AlignedBox::sizes()` 已被移除**
+**迁移建议**：
+- 旧代码短期内可能还能工作，但应尽早迁移
+- 新代码直接使用编译时模板参数
+
+### A.5 其他明确的破坏性变更
+
+以下变更在 Eigen 5.0 的发布说明中有明确记录：
+
+1. **`Eigen::aligned_allocator` 不再继承 `std::allocator`**
+   - 原因与标准库分配器模型变化有关
+   - 依赖旧继承关系的代码可能需要调整
+
+2. **欧拉角返回值更 canonical**
+   - 与旧版本相比，返回的欧拉角数值表示可能变化
+   - 这属于行为变化，不代表轴顺序 API 本身变化
+
+3. **随机数生成行为发生变化**
+   - `Random()` 的具体数值序列不应被视为跨版本稳定
+   - 不应依赖 Eigen 随机数的固定输出序列做版本无关测试
+
+4. **所有 LGPL 许可代码已移除**
+   - 发布说明中明确提到被移除的典型内容是 `ConstrainedConjugateGradient`
+
+5. **Eigen BLAS 的返回类型从 `int` 改为 `void`**
+   - 这是为兼容其他 BLAS 实现而做的调整
+
+6. **直接包含内部头文件将报错**
+   - 例如 `../src/...` 这类内部路径不再允许直接包含
+
+### A.6 欧拉角行为变化的正确理解
+
+Eigen 5.0 发布说明指出：欧拉角现在以**更规范（canonical）**的形式返回。  
+这意味着：
+
+- 等价旋转的**数值表示可能与旧版本不同**
+- 角度范围可能变化
+- 但 `eulerAngles(a0, a1, a2)` 请求的**轴顺序语义并没有改变**
+
+更稳妥的写法是基于旋转矩阵来理解结果：
 
 ```cpp
-// 旧代码 (Eigen 3.4) - 已移除
-Eigen::AlignedBox2d box;
-Eigen::Vector2d sizes = box.sizes();
-
-// 新代码 (Eigen 5.0) - 使用sizes()替代
-Eigen::Vector2d sizes = box.sizes();
+Eigen::Matrix3d R = ...;
+Eigen::Vector3d ea = R.eulerAngles(2, 1, 0);  // ZYX 顺序
 ```
 
-**3. `DenseBase::start()` 和 `DenseBase::end()` 已被移除**
+**迁移建议**：
+- 如果你的程序依赖某个固定欧拉角表示区间，升级后必须重新验证
+- 如果你的目标是做旋转计算而不是展示角度，优先在内部使用四元数或旋转矩阵
 
-```cpp
-// 旧代码 (Eigen 3.4) - 已移除
-Eigen::VectorXd v(10);
-Eigen::VectorXd v2 = v.start(5);
+### A.7 随机数行为变化的正确理解
 
-// 新代码 (Eigen 5.0) - 使用head()
-Eigen::VectorXd v2 = v.head(5);
-```
-
-### A.7 API行为变更
-
-**1. 欧拉角规范化**
-
-Eigen 5.0 对欧拉角进行了规范化处理，返回值可能与旧版本不同：
-
-```cpp
-Eigen::Vector3d ea = q.eulerAngles(0, 1, 2);
-// Eigen 5.0 保证返回的欧拉角在规范范围内
-// 例如：角度可能在 [-pi, pi] 而不是 [0, 2*pi]
-```
-
-**2. 随机数生成**
-
-Eigen 5.0 的随机数生成器行为可能与旧版本不同：
+Eigen 5.0 改变了随机数生成行为，因此以下代码：
 
 ```cpp
 Eigen::MatrixXd A = Eigen::MatrixXd::Random(3, 3);
-// Eigen 5.0 可能生成不同的随机数序列
-// 如果需要确定性结果，建议使用固定种子
 ```
 
-**3. 矩阵乘法优化**
+在不同 Eigen 版本中可能得到不同结果。
 
-Eigen 5.0 对矩阵乘法进行了更激进的优化，可能导致浮点数结果的微小差异：
+**建议**：
+- 不要把 `Random()` 的具体输出当作回归测试基准
+- 若需要可复现实验，请使用你自己的随机数引擎与固定种子，再把数据写入 Eigen 容器
 
-```cpp
-Eigen::MatrixXd C = A * B;
-// Eigen 5.0 可能使用不同的算法
-// 结果可能在数值精度上有微小差异
-```
+### A.8 迁移检查清单
+
+从 Eigen 3.4 迁移到 Eigen 5.0/5.0.1 时，建议至少检查以下内容：
+
+- [ ] 编译选项是否已升级到 `C++14` 或更高
+- [ ] 是否仍在使用 `Eigen::all` / `Eigen::last` 的旧写法
+- [ ] 是否仍在使用 SVD 的运行时 thin/full 选项
+- [ ] 是否依赖 `Random()` 的固定输出序列
+- [ ] 是否依赖某种固定形式的欧拉角返回值
+- [ ] 是否直接包含了 Eigen 内部头文件
+- [ ] 是否有依赖 `aligned_allocator` 旧继承关系的代码
+
+### A.9 本附录刻意不收录的内容
+
+以下内容**不应**作为 Eigen 5.0 的正式破坏性变更条目写入迁移文档：
+
+- 非法 C++ 语法（例如 `usingnamespace Eigen;`）
+- 无法验证的伪迁移项
+- “旧代码”和“新代码”完全相同的条目
+- 没有明确 release note 或文档依据的 API 移除声明
+
+这样可以避免把读者带入错误迁移路径。

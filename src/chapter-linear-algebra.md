@@ -85,7 +85,7 @@ int main() {
     
     // ========== 方法3：SVD（最稳定）==========
     // 适合病态问题，可处理秩亏情况
-    // Eigen 5.0+: bdcSvd() 返回 BDCSVD 对象，使用编译时模板参数
+    // 在 Eigen 5.x 中，thin/full U/V 的运行时选项已弃用，推荐使用编译时模板参数
     Eigen::VectorXd x3 = A.bdcSvd<Eigen::ComputeThinU | Eigen::ComputeThinV>().solve(b);
     
     // 计算残差
@@ -164,17 +164,17 @@ int main() {
     A.setRandom();
     
     // ========== BDCSVD（分治SVD，大型矩阵更快）==========
-    // Eigen 5.0+: 使用编译时模板参数指定计算选项，而非运行时构造函数参数
+    // 在 Eigen 5.x 中，thin/full U/V 的运行时选项已弃用，推荐使用编译时模板参数
     Eigen::BDCSVD<Eigen::MatrixXd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd1(A);
-    
-    // ========== 检查分解是否成功（Eigen 5.0新增info()方法）==========
+
+    // ========== 检查分解是否成功 ==========
     if (svd1.info() != Eigen::Success) {
         std::cerr << "SVD分解失败！可能是数值问题。\n";
         return -1;
     }
     
     // ========== JacobiSVD（Jacobi方法，更精确）==========
-    // Eigen 5.0+: 使用编译时模板参数指定计算选项
+    // 在 Eigen 5.x 中，thin/full U/V 的运行时选项已弃用，推荐使用编译时模板参数
     Eigen::JacobiSVD<Eigen::MatrixXd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd2(A);
     
     // 同样可以检查分解状态
@@ -225,7 +225,7 @@ int main() {
 }
 ```
 
-**SVD info() 方法说明（Eigen 5.0新增）**：
+**SVD `info()` 方法说明**：
 
 | 返回值                  | 说明                     |
 | ----------------------- | ------------------------ |

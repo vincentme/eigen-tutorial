@@ -76,7 +76,7 @@ if (std::abs(det) < 1e-10) {
     // 使用伪逆或其他方法
 }
 
-// 或使用条件数 (Eigen 5.0+: 使用编译时模板参数)
+// 或使用条件数（这里直接使用编译时模板参数写法）
 Eigen::JacobiSVD<Eigen::Matrix2d, Eigen::ComputeFullU | Eigen::ComputeFullV> svd(A);
 double cond = svd.singularValues()(0) / svd.singularValues()(svd.singularValues().size() - 1);
 if (cond > 1e10) {
@@ -112,10 +112,11 @@ struct MyClass {
 };
 
 MyClass* obj = new MyClass;  // 现在可以正常工作
-std::vector<MyClass> vec;    // 也可以正常使用
+// 注意：这只解决 new/delete 分配对象的对齐问题，
+// 不等价于自动解决 std::vector<MyClass> 的对齐问题
 ```
 
-**方案2：使用Eigen提供的内存分配器**
+**方案2：使用Eigen提供的对齐分配器**
 
 ```cpp
 #include <Eigen/StdVector>
@@ -123,9 +124,8 @@ std::vector<MyClass> vec;    // 也可以正常使用
 // 使用Eigen的对齐分配器
 std::vector<Eigen::Vector4d, Eigen::aligned_allocator<Eigen::Vector4d>> vec;
 
-// 或使用宏简化（推荐）
-EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Eigen::Vector4d)
-std::vector<Eigen::Vector4d> vec;  // 现在可以正常使用
+// 对于自定义类型，如果其成员包含需要特殊对齐的固定大小Eigen对象，
+// 在较旧环境下也需要考虑容器的对齐分配策略
 ```
 
 **方案3：禁用对齐（不推荐，性能损失）**
@@ -136,9 +136,9 @@ Eigen::Matrix<double, 4, 1, Eigen::DontAlign> v;  // 禁用对齐
 
 **最佳实践**：
 - 固定大小类型（`Vector4d`, `Matrix4f`等）需要注意对齐
-- 动态大小类型（`VectorXd`, `MatrixXd`）自动处理对齐
-- 在结构体/类中使用固定大小Eigen类型时，添加`EIGEN_MAKE_ALIGNED_OPERATOR_NEW`
-- 使用`Eigen::aligned_allocator`处理STL容器
+- 动态大小类型（`VectorXd`, `MatrixXd`）通常不需要像固定大小类型那样额外处理对齐
+- 在结构体/类中使用固定大小Eigen类型并通过 `new` 分配对象时，可添加 `EIGEN_MAKE_ALIGNED_OPERATOR_NEW`
+- 对 STL 容器中的需要特殊对齐的对象，优先考虑 `Eigen::aligned_allocator`
 
 ## 9.3 错误处理机制
 
@@ -351,8 +351,10 @@ int main() {
         return -1;
     }
     
-    // SVD分解（Eigen 5.0推荐使用BDCSVD替代JacobiSVD）
-    // Eigen 5.0+: 使用编译时模板参数指定计算选项
+    // SVD分解：
+    // - BDCSVD：通常更适合较大矩阵
+    // - JacobiSVD：通常更适合较小矩阵或更强调精度的场景
+    // Eigen 5.x 推荐使用编译时模板参数指定 thin/full U/V 选项
     Eigen::BDCSVD<Eigen::MatrixXd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(A);
     if (svd.info() != Eigen::Success) {
         std::cerr << "SVD分解失败!\n";
@@ -374,7 +376,8 @@ Eigen::MatrixXd safe_inverse(const Eigen::MatrixXd& A, double threshold = 1e-10)
         throw std::invalid_argument("矩阵必须是方阵");
     }
     
-    // Eigen 5.0+: 使用编译时模板参数，不计算U和V矩阵以提高性能
+    // 这里计算 thin U/V，是因为后续需要调用 solve() 来构造稳定的逆或伪逆
+    // Eigen 5.x 推荐使用编译时模板参数指定 thin/full U/V 选项
     Eigen::BDCSVD<Eigen::MatrixXd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(A);
     double cond = svd.singularValues()(0) / 
                   svd.singularValues()(svd.singularValues().size() - 1);

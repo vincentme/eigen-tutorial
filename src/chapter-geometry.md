@@ -107,7 +107,7 @@ int main() {
     Eigen::Vector3d x_axis(1, 0, 0);
     Eigen::Vector3d result = q_combined * x_axis;
     std::cout << "复合旋转后的X轴: " << result.transpose() << "\n";
-    // 输出: 复合旋转后的X轴: 0 0 1
+    // 输出: 复合旋转后的X轴: 0 1 0
     
     // ========== 四元数插值（SLERP）==========
     
@@ -215,7 +215,7 @@ int main() {
 }
 ```
 
-**Eigen 5.0兼容性说明**：Eigen 5.0中欧拉角的返回值形式更加规范，可能导致与旧版本不同的输出顺序或范围。如需跨版本兼容，建议显式处理返回值。
+**Eigen 5.0兼容性说明**：Eigen 5.0 中欧拉角的返回值形式更加规范，可能导致与旧版本不同的角度范围或等价表示；旋转轴顺序仍由 `eulerAngles(a0, a1, a2)` 的参数决定。如需跨版本兼容，建议显式处理返回值。
 
 ## 6.4 仿射变换
 
@@ -260,8 +260,8 @@ int main() {
     // 方式2：链式构造（推荐）
     // 注意：乘法顺序从右到左执行
     Eigen::Affine3d T2 = 
-        Eigen::Translation3d(1, 2, 3) *                    // 先平移
-        Eigen::AngleAxisd(M_PI / 4, Eigen::Vector3d::UnitZ());  // 再旋转
+        Eigen::Translation3d(1, 2, 3) *                    // 后平移
+        Eigen::AngleAxisd(M_PI / 4, Eigen::Vector3d::UnitZ());  // 先旋转
     
     // ========== 应用变换 ==========
     

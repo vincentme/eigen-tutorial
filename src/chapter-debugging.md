@@ -27,18 +27,35 @@ error: Eigen requires at least c++14 support
 g++ -std=c++14 ...  # 或 -std=c++17
 ```
 
-### 错误3：未定义引用
+### 错误3：模块头文件缺失或包含不完整
 
+```text
+error: ‘JacobiSVD’ is not a member of ‘Eigen’
 ```
-undefined reference to `pthread_create'
+
+或：
+
+```text
+error: incomplete type ‘Eigen::SelfAdjointEigenSolver<...>’ used in nested name specifier
 ```
+
+**常见原因**：
+- 只包含了 `<Eigen/Core>`，但实际使用了分解、特征值或几何相关功能
+- 头文件包含层级不完整
 
 **解决方案**：
 ```bash
-g++ ... -lpthread  # 链接pthread库
-# 或使用CMake
-target_link_libraries(myapp pthread)
+# 若使用大多数稠密矩阵功能，直接包含：
+#include <Eigen/Dense>
+
+# 若希望按模块最小化包含，可按需使用：
+#include <Eigen/SVD>
+#include <Eigen/Eigenvalues>
+#include <Eigen/Geometry>
 ```
+
+**说明**：
+这类错误比线程链接问题更常见，也更符合 Eigen 初学者的实际踩坑路径。
 
 ## 9.2 运行时错误
 
@@ -78,9 +95,17 @@ if (std::abs(det) < 1e-10) {
 
 // 或使用条件数（这里直接使用编译时模板参数写法）
 Eigen::JacobiSVD<Eigen::Matrix2d, Eigen::ComputeFullU | Eigen::ComputeFullV> svd(A);
-double cond = svd.singularValues()(0) / svd.singularValues()(svd.singularValues().size() - 1);
-if (cond > 1e10) {
-    std::cerr << "警告：矩阵病态，条件数 = " << cond << "\n";
+const auto singular_values = svd.singularValues();
+double sigma_max = singular_values(0);
+double sigma_min = singular_values(singular_values.size() - 1);
+
+if (sigma_min <= 1e-15) {
+    std::cerr << "警告：矩阵奇异或接近奇异，最小奇异值 = " << sigma_min << "\n";
+} else {
+    double cond = sigma_max / sigma_min;
+    if (cond > 1e10) {
+        std::cerr << "警告：矩阵病态，条件数 = " << cond << "\n";
+    }
 }
 ```
 
@@ -88,7 +113,7 @@ if (cond > 1e10) {
 
 **问题根源**：
 
-Eigen使用SIMD指令（SSE/AVX）优化性能，要求数据按16字节或32字节对齐。当使用`new`、`std::vector`或STL容器时，可能因对齐问题导致崩溃。
+Eigen使用SIMD指令（SSE/AVX）优化性能，某些固定大小类型在特定场景下会对内存对齐更敏感。历史上，当这类对象出现在`new`分配、自定义类型成员、`std::vector`或其他STL容器中时，可能因对齐问题导致崩溃或性能异常。现代编译器与标准库环境下，这类问题比过去少见，但在自定义类型、旧环境和跨ABI场景中仍值得注意。
 
 ```cpp
 struct MyClass {
@@ -198,20 +223,29 @@ if (!A.allFinite()) {
 
 // 检查条件数（判断是否病态）
 Eigen::JacobiSVD<Eigen::MatrixXd> svd(A);
-double cond = svd.singularValues()(0) / svd.singularValues().last();
-if (cond > 1e10) {
-    std::cerr << "矩阵病态，条件数 = " << cond << "\n";
+const auto singular_values = svd.singularValues();
+double sigma_max = singular_values(0);
+double sigma_min = singular_values(singular_values.size() - 1);
+
+if (sigma_min <= 1e-15) {
+    std::cerr << "矩阵奇异或接近奇异，最小奇异值 = " << sigma_min << "\n";
+} else {
+    double cond = sigma_max / sigma_min;
+    if (cond > 1e10) {
+        std::cerr << "矩阵病态，条件数 = " << cond << "\n";
+    }
 }
 ```
 
 ### 错误处理最佳实践
 
-| 场景         | 检查方法                   | 处理方式           |
-| ------------ | -------------------------- | ------------------ |
-| 矩阵求逆     | 检查条件数                 | 使用伪逆或正则化   |
-| 线性求解     | `info() != Success`        | 使用最小二乘解     |
-| Cholesky分解 | `info() == NumericalIssue` | 矩阵非正定，改用LU |
-| 数值溢出     | `hasNaN()`, `allFinite()`  | 检查输入数据       |
+| 场景         | 检查方法                             | 处理方式                         |
+| ------------ | ------------------------------------ | -------------------------------- |
+| 矩阵求逆     | 检查条件数或最小奇异值               | 使用伪逆、正则化或改写为 `solve` |
+| 线性求解     | `info() != Success`                  | 使用更稳健的分解或最小二乘解     |
+| Cholesky分解 | `info() == NumericalIssue`           | 矩阵非正定，改用LU/QR            |
+| 数值溢出     | `hasNaN()`, `allFinite()`            | 检查输入数据与数值范围           |
+| 秩亏/奇异    | 最小奇异值接近 0，或条件数极大       | 降级为 SVD / 伪逆 / 正则化       |
 
 ## 9.4 调试技巧
 

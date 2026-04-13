@@ -46,16 +46,21 @@ int main() {
     // 使用动态大小矩阵（尺寸在运行时确定）
     Eigen::MatrixXd B(3, 3);
     B.setRandom();  // 随机初始化
+
+    // 如果你已经明确知道尺寸，也可以继续使用固定大小矩阵
+    Eigen::Matrix3d B_fixed = Eigen::Matrix3d::Random();
     
     // 向量操作
     Eigen::Vector3d v(1, 2, 3);
     
     // 矩阵运算
-    Eigen::Matrix3d C = A * B;        // 矩阵乘法
+    Eigen::MatrixXd C = A * B;        // 固定大小 × 动态大小 -> 结果也更自然地写成动态矩阵
+    Eigen::Matrix3d C_fixed = A * B_fixed; // 固定大小 × 固定大小
     Eigen::Vector3d y = A * v;        // 矩阵-向量乘法
     double dot = v.dot(v);            // 点积
     
     std::cout << "A =\n" << A << "\n\n";
+    std::cout << "A * B 的尺寸: " << C.rows() << " x " << C.cols() << "\n";
     std::cout << "A * v =\n" << y << "\n";
     std::cout << "v · v = " << dot << "\n";
     

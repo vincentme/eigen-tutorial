@@ -6,16 +6,17 @@ Eigen提供多种求解器应对不同类型的线性系统。
 
 ### 密集矩阵求解器选择指南
 
-| 求解器                 | 矩阵类型   | 算法           | 适用场景               |
-| ---------------------- | ---------- | -------------- | ---------------------- |
-| `PartialPivLU`         | 可逆方阵   | 部分主元LU     | 通用，较快             |
-| `FullPivLU`            | 任意矩阵   | 全主元LU       | 秩亏矩阵，较慢但更稳定 |
-| `HouseholderQR`        | 任意矩阵   | Householder QR | 最小二乘问题           |
-| `ColPivHouseholderQR`  | 任意矩阵   | 列主元QR       | 秩亏最小二乘           |
-| `FullPivHouseholderQR` | 任意矩阵   | 全主元QR       | 最稳定但最慢           |
-| `LLT`                  | 正定矩阵   | Cholesky分解   | 最快，需矩阵正定       |
-| `LDLT`                 | 半正定矩阵 | 改进Cholesky   | 可处理半正定           |
-| `BDCSVD` / `JacobiSVD` | 任意矩阵   | SVD            | 最稳定，适合病态问题   |
+| 求解器                           | 矩阵类型                  | 算法                 | 适用场景 |
+| -------------------------------- | ------------------------- | -------------------- | -------- |
+| `LLT`                            | 对称正定矩阵              | Cholesky 分解        | 已知矩阵为 SPD 时的首选，速度最快 |
+| `LDLT`                           | 对称正定 / 某些半定场景   | LDLT 分解            | 比 `LLT` 更稳健一些，适合某些半定或数值边界更敏感的情形 |
+| `PartialPivLU`                   | 一般可逆方阵              | 部分主元 LU          | 通用可逆方阵的常见选择，速度较快 |
+| `ColPivHouseholderQR`            | 任意矩阵                  | 列主元 QR            | 官方教程中的稳妥通用起点，适合作为默认求解器之一 |
+| `CompleteOrthogonalDecomposition`| 任意矩阵                  | 完全正交分解         | 最小二乘、秩亏、欠定问题的推荐默认选择 |
+| `HouseholderQR`                  | 满秩最小二乘问题          | Householder QR       | 更快，但不揭示秩，也不适合作为秩亏问题的默认方案 |
+| `BDCSVD` / `JacobiSVD`           | 任意矩阵                  | SVD                  | 最稳健，适合病态问题或需要奇异值/奇异向量时 |
+| `FullPivLU`                      | 任意矩阵                  | 全主元 LU            | 更偏教学或调试用途，通常比 `PartialPivLU` 慢很多 |
+| `FullPivHouseholderQR`           | 任意矩阵                  | 全主元 QR            | 更偏教学或调试用途，通常比 `ColPivHouseholderQR` 慢很多 |
 
 ### 线性方程组求解示例
 
@@ -32,24 +33,26 @@ int main() {
     
     Eigen::Vector3d b(1, 2, 3);
     
-    // ========== 方法1：直接求逆（不推荐用于大型系统）==========
-    Eigen::Vector3d x1 = A.inverse() * b;
+    // ========== 方法1：Cholesky分解（已知A为对称正定时首选）==========
+    Eigen::LLT<Eigen::Matrix3d> llt(A);
+    Eigen::Vector3d x1 = llt.solve(b);
     
-    // ========== 方法2：LU分解（推荐通用方法）==========
+    // ========== 方法2：LU分解（一般可逆方阵的常见选择）==========
     Eigen::PartialPivLU<Eigen::Matrix3d> lu(A);
     Eigen::Vector3d x2 = lu.solve(b);
     
-    // ========== 方法3：Cholesky分解（矩阵正定时最快）==========
-    Eigen::LLT<Eigen::Matrix3d> llt(A);
-    Eigen::Vector3d x3 = llt.solve(b);
+    // ========== 方法3：列主元QR（更稳妥的通用方案）==========
+    Eigen::ColPivHouseholderQR<Eigen::Matrix3d> qr(A);
+    Eigen::Vector3d x3 = qr.solve(b);
     
-    // ========== 方法4：QR分解（处理超定/欠定系统）==========
-    Eigen::HouseholderQR<Eigen::Matrix3d> qr(A);
-    Eigen::Vector3d x4 = qr.solve(b);
+    // ========== 不推荐作为默认写法：显式求逆 ==========
+    // 对于线性系统，通常优先使用 solve()，而不是 A.inverse() * b
+    Eigen::Vector3d x_inverse = A.inverse() * b;
     
     // ========== 验证解的正确性 ==========
-    double residual = (A * x2 - b).norm();
-    std::cout << "残差范数: " << residual << "\n";
+    double residual = (A * x3 - b).norm();
+    std::cout << "QR 残差范数: " << residual << "\n";
+    std::cout << "逆矩阵写法的残差范数: " << (A * x_inverse - b).norm() << "\n";
     
     // ========== 多次求解（分解复用）==========
     // 当需要求解多个右端项时，先分解再求解更高效
@@ -75,22 +78,28 @@ int main() {
     Eigen::VectorXd b(10);
     b.setRandom();
     
-    // ========== 方法1：正规方程（A^T A x = A^T b）==========
-    // 最快但数值稳定性较差
+    // ========== 方法1：正规方程（最快，但数值稳定性较差）==========
     Eigen::VectorXd x1 = (A.transpose() * A).ldlt().solve(A.transpose() * b);
     
-    // ========== 方法2：QR分解（推荐）==========
-    // 数值稳定性好，速度适中
+    // ========== 方法2：列主元QR（稳妥、常用）==========
     Eigen::VectorXd x2 = A.colPivHouseholderQr().solve(b);
     
-    // ========== 方法3：SVD（最稳定）==========
-    // 适合病态问题，可处理秩亏情况
+    // ========== 方法3：CompleteOrthogonalDecomposition（推荐默认选择）==========
+    // 对秩亏、欠定、最小范数解等情况更稳妥
+    Eigen::VectorXd x3 = A.completeOrthogonalDecomposition().solve(b);
+    
+    // ========== 方法4：SVD（最稳健，但通常更慢）==========
+    // 适合病态问题，或你确实还需要奇异值/奇异向量
     // 在 Eigen 5.x 中，thin/full U/V 的运行时选项已弃用，推荐使用编译时模板参数
-    Eigen::VectorXd x3 = A.bdcSvd<Eigen::ComputeThinU | Eigen::ComputeThinV>().solve(b);
+    Eigen::VectorXd x4 = A.bdcSvd<Eigen::ComputeThinU | Eigen::ComputeThinV>().solve(b);
     
     // 计算残差
-    double residual = (A * x2 - b).norm();
-    std::cout << "最小二乘残差: " << residual << "\n";
+    std::cout << "ColPivHouseholderQR 残差: "
+              << (A * x2 - b).norm() << "\n";
+    std::cout << "CompleteOrthogonalDecomposition 残差: "
+              << (A * x3 - b).norm() << "\n";
+    std::cout << "SVD 残差: "
+              << (A * x4 - b).norm() << "\n";
     
     return 0;
 }
@@ -254,7 +263,7 @@ int main() {
     std::cout << "Cholesky L:\n" << L << "\n";
     std::cout << "验证 L*L^T:\n" << L * L.transpose() << "\n\n";
     
-    // ========== LDL^T分解（可处理半正定）==========
+    // ========== LDL^T分解（适合对称正定，也常用于某些半定/边界场景）==========
     Eigen::LDLT<Eigen::Matrix3d> ldlt(A);
     
     // ========== LU分解：PA = LU ==========

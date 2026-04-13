@@ -63,12 +63,15 @@ std::pair<Eigen::MatrixXd, Eigen::VectorXd> pca(
     
     // 3. 特征值分解
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> solver(cov);
+    if (solver.info() != Eigen::Success) {
+        throw std::runtime_error("PCA特征值分解失败");
+    }
     
     // 4. 按特征值降序排序
     // SelfAdjointEigenSolver返回升序排列的特征值
     // 需要降序时，同时反转特征值和对应的特征向量列
     Eigen::VectorXd eigenvalues = solver.eigenvalues().reverse();
-    Eigen::MatrixXd eigenvectors = solver.eigenvectors().colwise().reverse();
+    Eigen::MatrixXd eigenvectors = solver.eigenvectors().rowwise().reverse();
     
     // 5. 选择前n_components个主成分
     Eigen::MatrixXd components = eigenvectors.leftCols(n_components);
@@ -109,6 +112,7 @@ int main() {
 - 矩阵乘法与转置
 - 最小二乘问题
 - QR 分解
+- `CompleteOrthogonalDecomposition`
 
 **数据约定**：
 - 线性回归部分采用“**每行一个样本**”的数据组织方式
@@ -139,7 +143,9 @@ public:
         X_with_bias.col(0).setOnes();
         X_with_bias.rightCols(X.cols()) = X;
         
-        // 使用QR分解求解（数值稳定）
+        // 使用列主元QR求解：作为常见、稳妥的默认选择
+        // 如果问题可能秩亏，或你需要更稳妥地处理欠定/最小范数解，
+        // 可以考虑 completeOrthogonalDecomposition()
         coefficients = X_with_bias.colPivHouseholderQr().solve(y);
         
         intercept = coefficients(0);
@@ -172,6 +178,8 @@ Eigen::VectorXd polynomial_fit(const Eigen::VectorXd& x,
     }
     
     // 求解最小二乘问题
+    // 这里继续使用列主元QR；若更关注秩亏情形的稳健性，
+    // 可改为 V.completeOrthogonalDecomposition().solve(y)
     return V.colPivHouseholderQr().solve(y);
 }
 

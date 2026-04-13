@@ -42,23 +42,24 @@
 
 ### 矩阵分解与求解
 
-| 功能         | API                                     | 所在章节 |
-| ------------ | --------------------------------------- | -------- |
-| LU分解       | `PartialPivLU`, `FullPivLU`             | 5.1, 5.4 |
-| QR分解       | `HouseholderQR`, `ColPivHouseholderQR`  | 5.1, 5.4 |
-| Cholesky分解 | `LLT`, `LDLT`                           | 5.1, 5.4 |
-| SVD分解      | `JacobiSVD`, `BDCSVD`                   | 5.1, 5.3 |
-| 特征值分解   | `EigenSolver`, `SelfAdjointEigenSolver` | 5.2      |
-| 求解线性方程 | `solver.solve(b)`                       | 5.1      |
+| 功能         | API                                                         | 所在章节 |
+| ------------ | ----------------------------------------------------------- | -------- |
+| LU分解       | `PartialPivLU`, `FullPivLU`                                 | 5.1, 5.4 |
+| QR分解       | `HouseholderQR`, `ColPivHouseholderQR`                      | 5.1, 5.4 |
+| 完全正交分解 | `CompleteOrthogonalDecomposition`                           | 5.1      |
+| Cholesky分解 | `LLT`, `LDLT`                                               | 5.1, 5.4 |
+| SVD分解      | `JacobiSVD`, `BDCSVD`                                       | 5.1, 5.3 |
+| 特征值分解   | `EigenSolver`, `SelfAdjointEigenSolver`                     | 5.2      |
+| 求解线性方程 | `solver.solve(b)`, `completeOrthogonalDecomposition().solve(b)` | 5.1      |
 
 ### 几何变换
 
-| 功能      | API                                                     | 所在章节 |
-| --------- | ------------------------------------------------------- | -------- |
-| 旋转矩阵  | `Rotation2D`, `AngleAxis`, `toRotationMatrix()`         | 6.1, 6.2 |
-| 四元数    | `Quaterniond`                                           | 6.2      |
-| 欧拉角    | `MatrixBase::eulerAngles(a0, a1, a2)`                   | 6.3      |
-| 变换矩阵  | `Transform`, `Affine3d`, `Isometry3d`                   | 6.4      |
+| 功能      | API                                                         | 所在章节 |
+| --------- | ----------------------------------------------------------- | -------- |
+| 旋转矩阵  | `Rotation2D`, `AngleAxis`, `toRotationMatrix()`             | 6.1, 6.2 |
+| 四元数    | `Quaterniond`                                               | 6.2      |
+| 欧拉角    | `MatrixBase::eulerAngles(a0, a1, a2)`                       | 6.3      |
+| 变换矩阵  | `Transform`, `Affine3d`, `Isometry3d`                       | 6.4      |
 | 旋转+平移 | `Translation3d * AngleAxisd`, `Translation3d * Quaterniond` | 6.4      |
 
 ### Array 类（逐元素运算）
@@ -76,17 +77,17 @@
 
 ## D. 常见错误速查表 
 
-| 错误信息                         | 可能原因           | 解决方案                              | 参考章节 |
-| -------------------------------- | ------------------ | ------------------------------------- | -------- |
-| `Eigen/Core: No such file`       | 头文件路径错误     | 检查`-I`路径配置                      | 1.1, 1.2 |
-| `requires at least c++14`        | C++标准过低        | 添加`-std=c++14` 或更高标准           | 9.1      |
-| `Index out of range`             | 矩阵访问越界       | 检查索引范围                          | 9.2      |
-| `Assertion failed`               | 维度不匹配         | 验证运算兼容性                        | 9.2, 9.3 |
-| `undefined reference to pthread` | 线程相关链接缺失   | 检查并行配置或构建系统链接设置        | 8.4, 9.1 |
-| 矩阵包含NaN/Inf                  | 数值溢出或奇异矩阵 | 检查条件数，使用伪逆                  | 9.3, 9.6 |
-| 内存对齐错误                     | 固定大小矩阵对齐   | 使用`EIGEN_MAKE_ALIGNED_OPERATOR_NEW` | 9.2      |
-| 编译缓慢                         | 模板展开开销       | 使用预编译头、减少不必要头文件包含    | 8.3      |
-| 运行时断言失败                   | 调试模式检查       | 检查输入维度和别名问题                | 9.2, 9.3 |
+| 错误信息                                           | 可能原因                 | 解决方案                                  | 参考章节 |
+| -------------------------------------------------- | ------------------------ | ----------------------------------------- | -------- |
+| `Eigen/Core: No such file`                         | 头文件路径错误           | 检查`-I`路径配置                          | 1.1, 1.2 |
+| `requires at least c++14`                          | C++标准过低              | 添加`-std=c++14` 或更高标准               | 9.1      |
+| `JacobiSVD is not a member of Eigen`               | 模块头文件缺失           | 补充 `<Eigen/Dense>` 或按需包含模块头文件 | 9.1      |
+| `incomplete type ... used in nested name specifier`| 包含层级不完整           | 检查是否缺少 `SVD` / `Eigenvalues` 等头文件 | 9.1    |
+| `Assertion failed`                                 | 维度不匹配               | 验证运算兼容性                            | 9.2, 9.3 |
+| 矩阵包含NaN/Inf                                    | 数值溢出或奇异矩阵       | 检查条件数或最小奇异值，必要时使用伪逆    | 9.3, 9.6 |
+| 内存对齐错误                                       | 固定大小矩阵对齐敏感场景 | 使用`EIGEN_MAKE_ALIGNED_OPERATOR_NEW`等方案 | 9.2    |
+| 编译缓慢                                           | 模板展开开销             | 使用预编译头、减少不必要头文件包含        | 8.3      |
+| 运行时断言失败                                     | 调试模式检查             | 检查输入维度和别名问题                    | 9.2, 9.3 |
 
 ## E. 快速参考表 
 
@@ -126,9 +127,13 @@
 # 基础编译
 g++ -std=c++17 -I/path/to/eigen -O2 program.cpp
 
-# 高性能编译
-g++ -std=c++17 -I/path/to/eigen -O3 -march=native -fopenmp \
+# 通用高性能编译
+g++ -std=c++17 -I/path/to/eigen -O3 -march=native \
     -DEIGEN_NO_DEBUG -DNDEBUG program.cpp
+
+# 如项目明确使用 OpenMP，再按需启用
+# g++ -std=c++17 -I/path/to/eigen -O3 -march=native -fopenmp \
+#     -DEIGEN_NO_DEBUG -DNDEBUG program.cpp
 
 # 调试编译
 g++ -std=c++17 -I/path/to/eigen -O0 -g program.cpp

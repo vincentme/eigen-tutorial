@@ -3,15 +3,14 @@
 ## 8.1 编译优化选项
 
 ```bash
-# 推荐的高性能编译配置
-g++ -std=c++17 \
-    -O3 \                       # 最高优化级别
-    -march=native \             # 针对当前CPU指令集优化
-    -fopenmp \                  # 启用OpenMP
-    -DEIGEN_NO_DEBUG \          # 禁用Eigen断言（发布模式）
-    -DNDEBUG \                  # 禁用标准assert
-    -I/path/to/eigen \
-    -o optimized_app app.cpp
+# 推荐的通用高性能编译配置
+g++ -std=c++17 -O3 -march=native -DEIGEN_NO_DEBUG -DNDEBUG \
+    -I/path/to/eigen -o optimized_app app.cpp
+
+# 如项目明确使用 OpenMP，并且你已经评估过线程模型与构建环境，
+# 再按需添加：
+# g++ -std=c++17 -O3 -march=native -fopenmp -DEIGEN_NO_DEBUG -DNDEBUG \
+#     -I/path/to/eigen -o optimized_app app.cpp
 
 # 注意：-ffast-math 可能导致数值精度问题
 # 仅在对精度要求不高的场景使用，例如图形渲染
@@ -30,6 +29,7 @@ g++ -std=c++17 \
 - 科学计算和数值分析：**不要使用**`-ffast-math`
 - 图形渲染、游戏开发：可以谨慎使用
 - 如需高性能，优先考虑`-O3 -march=native -ffp-contract=fast`
+- `-fopenmp` 不是 Eigen 项目的默认必选项，应仅在确实需要并行化且构建环境支持时启用
 
 ### 向量化指令集
 
@@ -52,7 +52,7 @@ g++ -std=c++17 \
 void benchmark() {
     const int N = 1000000;
     
-    // 固定大小（栈分配）- 更快
+    // 固定大小（栈分配）- 在这类小矩阵场景下通常更快
     auto start = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < N; ++i) {
         Eigen::Matrix4d A = Eigen::Matrix4d::Random();
@@ -61,7 +61,7 @@ void benchmark() {
     }
     auto fixed_time = std::chrono::high_resolution_clock::now() - start;
     
-    // 动态大小（堆分配）- 较慢
+    // 动态大小（堆分配）- 在这类小矩阵场景下通常较慢
     start = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < N; ++i) {
         Eigen::MatrixXd A = Eigen::MatrixXd::Random(4, 4);
@@ -70,7 +70,8 @@ void benchmark() {
     }
     auto dynamic_time = std::chrono::high_resolution_clock::now() - start;
     
-    // 固定大小通常快2-10倍
+    // 对这类小尺寸矩阵，固定大小常常会明显更快；
+    // 具体收益依赖尺寸、编译器、目标平台和表达式形态
 }
 ```
 
@@ -110,9 +111,13 @@ Eigen::MatrixXd A;
 A.resize(1000, 1000);  // 一次性分配
 
 // 多次操作时避免重复分配
+Eigen::MatrixXd B(1000, 1000), C(1000, 1000);
+B.setRandom();
+C.setRandom();
+
 for (int i = 0; i < 1000; ++i) {
     // A.resize(...)  // 不要这样做！
-    A.noalias() = B * C;  // 使用noalias避免临时对象
+    A.noalias() = B * C;  // 当 A 与 B/C 不重叠时，可用 noalias() 避免不必要的临时对象
 }
 ```
 
@@ -204,9 +209,10 @@ MatrixXd A, B;
 // 错误：auto保存的是表达式对象，不是结果
 auto sum = A + B;  // sum是表达式对象，不拥有数据
 
-// 如果A或B在sum使用前被修改或销毁，会导致未定义行为
+// 如果A或B在sum求值前被修改，结果可能与“保存当时结果”的直觉不一致；
+// 如果它们已经销毁，则还可能出现悬空引用问题
 A(0, 0) = 999;     // 修改A
-MatrixXd C = sum;  // 使用过期的表达式！
+MatrixXd C = sum;  // 这里得到的是“此刻再求值”的结果，而不是定义sum时就保存好的结果
 
 // 正确做法
 MatrixXd sum = A + B;  // 显式指定类型，立即求值

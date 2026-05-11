@@ -28,6 +28,6 @@
 3. **迁移用户**：重点阅读附录 A 和附录 B，了解 Eigen 5.0/5.0.1 的兼容性变化与推荐写法
 4. **编译标准**：Eigen 5.0.x 最低要求 C++14，本教程中的示例默认按 C++17 组织
 
-### 反馈与贡献
+### 参考文档
 
-如果您发现教程中的错误或有改进建议，欢迎提出 Issue 或 Merge Request。
+[Eigen 官方文档](https://libeigen.gitlab.io/eigen/docs-nightly/)

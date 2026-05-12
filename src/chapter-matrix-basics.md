@@ -1,24 +1,10 @@
 # 三、矩阵基础篇：声明与基本运算
 
-本篇是对 Eigen 矩阵与向量操作的**正式系统讲解**。如果您刚完成前一章“基础篇”，可以把本章理解为从“快速上手”进入“规范使用”的过渡：前一章帮助您建立直觉，本章则帮助您建立稳定、可迁移的使用习惯。
-
-**建议先修**：
-- 已完成安装与最小示例验证
-- 了解 `Matrix` 与 `Array` 的基本区别
-- 知道 Eigen 是纯头文件库，且示例默认按 C++17 组织
-
-**本章学习目标**：
-1. 学会声明固定大小与动态大小的矩阵/向量
-2. 掌握常见初始化方法与基本运算
-3. 理解矩阵运算与逐元素运算的区别
-4. 建立对行/列、尺寸匹配、存储顺序的基本认识
+> **前置**：已完成安装，了解 `Matrix` 与 `Array` 的基本区别。
 
 ## 3.1 矩阵和向量的声明
 
-在 Eigen 中，最先要建立的概念不是“怎么写代码”，而是“对象代表什么”：
-- 矩阵通常表示线性变换、系数表或二维数据
-- 列向量通常表示坐标、状态、参数或观测值
-- 行向量则更常用于一行数据、转置结果或某些统计场景
+Eigen 中，矩阵表示线性变换、系数表或二维数据；列向量表示坐标、状态、参数或观测值；行向量常用于一行数据、转置结果或统计场景。
 
 后续章节默认以**列向量**作为主要约定；如果没有特别说明，`VectorXd` 一般指动态大小的列向量。
 
@@ -39,8 +25,10 @@ Matrix[尺寸][数据类型]
 | ---------- | ---------------------------------- | ---------------- |
 | `Matrix3d` | `Matrix<double, 3, 3>`             | 3×3双精度矩阵    |
 | `MatrixXd` | `Matrix<double, Dynamic, Dynamic>` | 动态双精度矩阵   |
-| `Vector3f` | `Matrix<float, 3, 1>`              | 3维单精度向量    |
+| `Vector3f` | `Matrix<float, 3, 1>`              | 3维单精度列向量    |
+| `RowVector3d` | `Matrix<double, 1, 3>`           | 3维双精度行向量    |
 | `VectorXd` | `Matrix<double, Dynamic, 1>`       | 动态双精度列向量 |
+| `RowVectorXd` | `Matrix<double, 1, Dynamic>`     | 动态双精度行向量 |
 
 ### 声明示例
 
@@ -61,10 +49,7 @@ Eigen::MatrixXd R = Eigen::MatrixXd::Random(3, 3);// 随机矩阵
 
 ## 3.2 矩阵初始化方法
 
-初始化方式不只是语法差异，也对应不同的使用场景：
-- **逗号初始化**：适合小型固定大小对象，最直观
-- **循环赋值**：适合按规则填充
-- **预定义函数**：适合零矩阵、单位矩阵、常量矩阵、随机矩阵等常见情况
+逗号初始化适合小型固定大小对象；循环赋值适合按规则填充；预定义函数适合零矩阵、单位矩阵、常量矩阵、随机矩阵等场景。
 
 ```cpp
 // 方法1：逗号初始化
@@ -88,13 +73,7 @@ Eigen::Matrix3d F = Eigen::Matrix3d::Random();    // 随机值
 
 ## 3.3 基础矩阵运算
 
-这一节请特别注意两类“乘法”不要混淆：
-
-- `A * B`：**线性代数意义**上的矩阵乘法
-- `A.array() * B.array()`：**逐元素**乘法
-
-这是 Eigen 初学者最常见的混淆点之一。  
-如果您发现自己在写 `sqrt`、`exp`、逐元素乘除法，一般就应该先想到 `Array` 视图。
+`A * B` 是矩阵乘法，`A.array() * B.array()` 是逐元素乘法。涉及 `sqrt`、`exp`、逐元素乘除法时，使用 `Array` 视图。
 
 ```cpp
 Eigen::Matrix3d A, B;
@@ -132,11 +111,7 @@ Eigen::Matrix3d sqrtP = P.array().sqrt();
 
 ## 3.4 向量运算
 
-向量部分建议优先记住三件事：
-
-1. `dot()` 是点积，结果是标量
-2. `cross()` 只适用于三维向量
-3. `normalized()` 返回新向量，而 `normalize()` 会直接修改原对象
+`dot()` 是点积，返回标量；`cross()` 限于三维向量；`normalized()` 返回新向量（不修改原对象），`normalize()` 原地修改。
 
 ```cpp
 Eigen::Vector3d v1(1, 2, 3);
@@ -146,28 +121,28 @@ Eigen::Vector3d v2(4, 5, 6);
 double dot = v1.dot(v2);          // 点积
 Eigen::Vector3d cross = v1.cross(v2);  // 叉积（仅3D向量）
 double norm = v1.norm();          // 欧几里得范数
-Eigen::Vector3d normalized = v1.normalized();  // 归一化向量
 
-// 原地归一化
-v1.normalize();
+// normalized() 返回新的归一化向量，不修改 v1 本身
+Eigen::Vector3d normalized = v1.normalized();
 
-// 向量运算
+// 向量元素运算（此时 v1 仍是原始值 {1, 2, 3}）
 v1.sum();                         // 所有元素之和
 v1.prod();                        // 所有元素之积
 v1.mean();                        // 平均值
 v1.minCoeff();                    // 最小值
 v1.maxCoeff();                    // 最大值
+
+// normalize() 直接修改原向量
+v1.normalize();  // 此后 v1 变为单位向量
 ```
 
 ## 3.5 数据类型与存储
 
-这一节是后续“高级操作篇”的前置基础。  
-特别是 `block`、`Map`、`Ref`、切片访问等功能，都和“对象尺寸是否已知”“内存是否连续”“默认按列存储还是按行存储”密切相关。
+`block`、`Map`、`Ref`、切片等功能与对象尺寸是否已知、内存是否连续、存储顺序密切相关。
 
-如果您暂时只想先会用，可以先记住：
-- 小而固定的矩阵，优先考虑固定大小类型
-- 尺寸运行时才能确定时，使用动态大小类型
-- Eigen 默认是**列优先（ColMajor）**
+- 小矩阵优先用固定大小类型
+- 尺寸运行时确定时用动态大小类型
+- Eigen 默认**列优先（ColMajor）**
 
 ### 固定大小 vs 动态大小
 
@@ -187,5 +162,7 @@ Eigen::Matrix<double, 3, 4, Eigen::RowMajor> B;  // 行优先（与C一致）
 // 访问元素
 A(i, j);  // 第i行第j列（从0开始）
 ```
+
+> **对应官方文档**：[The Matrix class](https://eigen.tuxfamily.org/dox/group__TutorialMatrixClass.html) | [Matrix and vector arithmetic](https://eigen.tuxfamily.org/dox/group__TutorialMatrixArithmetic.html)
 
 ---

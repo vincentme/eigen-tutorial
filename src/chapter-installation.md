@@ -2,8 +2,7 @@
 
 ## 1.1 快速安装
 
-Eigen 是纯头文件库，安装完成后无需额外编译库文件。  
-本教程默认示例使用 **C++17**，同时兼容 Eigen 5.0.x 的最低要求 **C++14**。
+Eigen 是纯头文件库，安装完成后无需额外编译库文件。
 
 ```bash
 # Linux
@@ -22,7 +21,7 @@ cd eigen && git checkout 5.0.1
 
 ### 安装完成后的最小验证
 
-建议安装后先运行一个最小示例，确认头文件路径和编译选项都正确。
+安装完成后先运行一个最小示例，确认头文件路径和编译选项正确。
 
 ```cpp
 #include <Eigen/Dense>
@@ -54,7 +53,7 @@ g++ -std=c++17 -I"C:\path\to\eigen" -O2 -o eigen_check.exe eigen_check.cpp
 
 **常见失败原因**：
 - `-I` 路径没有指向 Eigen 头文件根目录
-- C++ 标准过低（应至少为 `C++14`）
+- C++ 标准过低（Eigen 5.0.x 最低要求 C++14）
 - Windows 下路径或引号写法不正确
 
 ## 1.2 CMake 集成
@@ -75,6 +74,8 @@ add_executable(myapp main.cpp)
 find_package(Eigen3 5.0 REQUIRED NO_MODULE)
 target_link_libraries(myapp PRIVATE Eigen3::Eigen)
 ```
+
+> **注意**：`find_package(Eigen3 ...)` 的可用性取决于系统是否正确安装了 Eigen 5.x 的 CMake 配置文件。并非所有发行包都提供该配置；若此方式失败，可使用下面的 FetchContent 方式。
 
 ### 方式2：使用 FetchContent 自动下载
 
@@ -139,11 +140,13 @@ g++ -std=c++17 -I/path/to/eigen -O3 -march=native -o myapp myapp.cpp
 | `<Eigen/Cholesky>`       | Cholesky分解               | 正定矩阵     | ~0.3MB   |
 | `<Eigen/SparseCholesky>` | 稀疏Cholesky分解           | 稀疏正定矩阵 | ~0.5MB   |
 
-**选择建议**：
+**选择指南**：
 - **最小依赖**：仅使用`<Eigen/Core>`
 - **通用场景**：使用`<Eigen/Dense>`（包含大部分功能）
 - **几何应用**：使用`<Eigen/Geometry>`
 - **大规模计算**：使用`<Eigen/Sparse>`
 - **单独功能**：按需包含特定模块（如`<Eigen/QR>`）
+
+> **对应官方文档**：[Getting Started](https://eigen.tuxfamily.org/dox/GettingStarted.html)
 
 ---

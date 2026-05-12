@@ -65,7 +65,7 @@ int main() {
     
     // 方式2：从轴角构造（绕Z轴旋转45度）
     // 注意：轴向量必须是单位向量；这里 (0,0,1) 已经是单位向量
-    Eigen::AngleAxisd rotation_vector(M_PI / 4, Eigen::Vector3d(0, 0, 1));
+    Eigen::AngleAxisd rotation_vector(EIGEN_PI / 4, Eigen::Vector3d(0, 0, 1));
     Eigen::Quaterniond q2(rotation_vector);
     std::cout << "绕Z轴45度: " << q2.coeffs().transpose() << "\n";
     // 输出: 绕Z轴45度: 0 0 0.382683 0.92388
@@ -82,7 +82,7 @@ int main() {
     
     // ========== 四元数基本操作 ==========
     
-    // 归一化（确保表示有效旋转，非常重要！）
+    // 归一化（确保表示有效旋转）
     q2.normalize();
     
     // 获取旋转矩阵
@@ -103,8 +103,8 @@ int main() {
     // ========== 四元数复合（旋转串联）==========
     
     // 先绕X轴90度，再绕Z轴90度
-    Eigen::Quaterniond qx(Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d::UnitX()));
-    Eigen::Quaterniond qz(Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d::UnitZ()));
+    Eigen::Quaterniond qx(Eigen::AngleAxisd(EIGEN_PI / 2, Eigen::Vector3d::UnitX()));
+    Eigen::Quaterniond qz(Eigen::AngleAxisd(EIGEN_PI / 2, Eigen::Vector3d::UnitZ()));
     
     // 四元数乘法：q_combined = qz * qx 表示先qx后qz
     Eigen::Quaterniond q_combined = qz * qx;
@@ -119,13 +119,13 @@ int main() {
     
     // 球面线性插值：在两个旋转之间平滑过渡
     Eigen::Quaterniond q_start = Eigen::Quaterniond::Identity();
-    Eigen::Quaterniond q_end(Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d::UnitZ()));
+    Eigen::Quaterniond q_end(Eigen::AngleAxisd(EIGEN_PI / 2, Eigen::Vector3d::UnitZ()));
     
     // t=0时为q_start，t=1时为q_end，t=0.5为中间旋转
     for (double t : {0.0, 0.25, 0.5, 0.75, 1.0}) {
         Eigen::Quaterniond q_interp = q_start.slerp(t, q_end);
         Eigen::AngleAxisd aa(q_interp);
-        std::cout << "t=" << t << ": 旋转角度 " << aa.angle() * 180 / M_PI << "度\n";
+        std::cout << "t=" << t << ": 旋转角度 " << aa.angle() * 180 / EIGEN_PI << "度\n";
     }
     // 输出:
     // t=0: 旋转角度 0度
@@ -169,9 +169,9 @@ int main() {
     // ========== 欧拉角创建 ==========
     
     // 定义欧拉角（弧度）
-    double yaw = M_PI / 6;    // 30度，绕Z轴
-    double pitch = M_PI / 4;  // 45度，绕Y轴
-    double roll = M_PI / 3;   // 60度，绕X轴
+    double yaw = EIGEN_PI / 6;    // 30度，绕Z轴
+    double pitch = EIGEN_PI / 4;  // 45度，绕Y轴
+    double roll = EIGEN_PI / 3;   // 60度，绕X轴
     
     // 从欧拉角创建旋转矩阵（ZYX顺序，内旋）
     // 内旋：依次绕物体自身的Z、Y、X轴旋转
@@ -190,7 +190,7 @@ int main() {
     Eigen::Vector3d euler = R.eulerAngles(2, 1, 0);
     std::cout << "提取的欧拉角（弧度）: " << euler.transpose() << "\n";
     std::cout << "提取的欧拉角（度）: " 
-              << (euler * 180 / M_PI).transpose() << "\n\n";
+              << (euler * 180 / EIGEN_PI).transpose() << "\n\n";
     // 输出:
     // 提取的欧拉角（弧度）: 0.523599 0.785398 1.0472
     // 提取的欧拉角（度）: 30 45 60
@@ -200,7 +200,7 @@ int main() {
     std::cout << "===== 万向节锁演示 =====\n";
     
     // 当pitch = ±90°时，发生万向节锁
-    double pitch_locked = M_PI / 2;
+    double pitch_locked = EIGEN_PI / 2;
     Eigen::Matrix3d R_locked;
     R_locked = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) *
                Eigen::AngleAxisd(pitch_locked, Eigen::Vector3d::UnitY()) *
@@ -208,7 +208,7 @@ int main() {
     
     // 尝试提取欧拉角
     Eigen::Vector3d euler_locked = R_locked.eulerAngles(2, 1, 0);
-    std::cout << "pitch=90°时提取的欧拉角: " << (euler_locked * 180 / M_PI).transpose() << "\n";
+    std::cout << "pitch=90°时提取的欧拉角: " << (euler_locked * 180 / EIGEN_PI).transpose() << "\n";
     // 这里的结果不应被当作唯一“标准答案”；
     // 在奇异位置附近，不同但等价的欧拉角表示都可能出现
     
@@ -223,7 +223,7 @@ int main() {
 }
 ```
 
-**Eigen 5.0兼容性说明**：Eigen 5.0 中欧拉角的返回值形式更加规范（canonical），因此与旧版本相比，返回值的角度区间或具体数值表示可能发生变化；但 `eulerAngles(a0, a1, a2)` 的轴顺序语义并没有改变。如需跨版本兼容，请不要把某个固定角度区间当作协议，而应把结果视为“当前版本下的一种等价表示”。
+**Eigen 5.0兼容性说明**：Eigen 5.0 中欧拉角的返回值形式更加规范（canonical），因此与旧版本相比，返回值的角度区间或具体数值表示可能发生变化；但 `eulerAngles(a0, a1, a2)` 的轴顺序语义并没有改变。如需跨版本兼容，不应把某个固定角度区间当作协议，应把结果视为“当前版本下的一种等价表示”。
 
 ## 6.4 仿射变换
 
@@ -244,11 +244,36 @@ T = | R₃ₓ₃  t₃ₓ₁ |
 - 变换复合简化为矩阵乘法
 - 便于处理刚体运动链
 
-在实际使用中，还要区分三类对象：
+在实际使用中，还要区分三类对象，它们在同一个变换矩阵下的变换方式不同：
 
-- **点（point）**：既受旋转影响，也受平移影响
-- **方向向量（vector）**：只受线性部分影响，不受平移影响
-- **法向量（normal）**：在一般仿射变换下，不能简单按普通向量那样变换
+- **点（point）**：`T * point`，既受旋转影响，也受平移影响
+- **方向向量（direction vector）**：`T.rotation() * vector`，只受旋转影响，平移对其无意义
+- **法向量（normal vector）**：在一般仿射变换（含非均匀缩放）下，法向量不能简单用 `T` 或 `T.rotation()` 变换。正确变换为 `(T^{-1})^T`，即逆转置。对于 `Affine3d`/`Isometry3d`，实践中常用 `T.rotation().inverse().transpose() * normal`
+
+**为什么法向量需要特殊处理？** 考虑一个平面经过非均匀缩放后，其法向量方向不会简单与顶点同步缩放。对于纯刚体变换（旋转+平移，`Isometry3d`），法向量与方向向量的变换相同，因为旋转矩阵是正交矩阵（`R^{-1} = R^T`），逆转置等于自身。
+
+```cpp
+// 区分三种向量的变换方式
+Eigen::Affine3d T = Eigen::Translation3d(1, 2, 3)
+                  * Eigen::AngleAxisd(EIGEN_PI / 4, Eigen::Vector3d::UnitZ())
+                  * Eigen::Scaling(2.0, 1.0, 1.0);  // X 方向缩放 2 倍
+
+Eigen::Vector3d point(1, 0, 0);
+Eigen::Vector3d dir(0, 1, 0);
+Eigen::Vector3d normal(1, 0, 0);  // 假设为某平面的法向量
+
+// 点：直接乘变换矩阵
+Eigen::Vector3d transformed_point = T * point;
+
+// 方向向量：只用旋转部分（去掉平移）
+Eigen::Vector3d transformed_dir = T.rotation() * dir;
+
+// 法向量：用逆转置（对于含非均匀缩放的仿射变换）
+Eigen::Vector3d transformed_normal =
+    T.rotation().inverse().transpose() * normal;
+// 注意：若为纯刚体变换（Isometry3d），rotation().inverse().transpose() == rotation()，
+// 此时法向量与方向向量的变换相同
+```
 
 ```cpp
 #include <Eigen/Geometry>
@@ -260,7 +285,7 @@ int main() {
     
     // 方式1：分别设置旋转和平移
     Eigen::Affine3d T1 = Eigen::Affine3d::Identity();
-    T1.rotate(Eigen::AngleAxisd(M_PI / 4, Eigen::Vector3d::UnitZ()));
+    T1.rotate(Eigen::AngleAxisd(EIGEN_PI / 4, Eigen::Vector3d::UnitZ()));
     T1.pretranslate(Eigen::Vector3d(1, 2, 3));
     
     std::cout << "变换矩阵T1:\n" << T1.matrix() << "\n\n";
@@ -275,7 +300,7 @@ int main() {
     // 注意：乘法顺序从右到左执行
     Eigen::Affine3d T2 = 
         Eigen::Translation3d(1, 2, 3) *                    // 后平移
-        Eigen::AngleAxisd(M_PI / 4, Eigen::Vector3d::UnitZ());  // 先旋转
+        Eigen::AngleAxisd(EIGEN_PI / 4, Eigen::Vector3d::UnitZ());  // 先旋转
     
     // ========== 应用变换 ==========
     
@@ -341,7 +366,7 @@ int main() {
     
     // ========== 完整变换链 ==========
     // 变换顺序：缩放 → 旋转 → 平移（从右到左）
-    Eigen::Quaterniond q(Eigen::AngleAxisd(M_PI / 4, Eigen::Vector3d::UnitZ()));
+    Eigen::Quaterniond q(Eigen::AngleAxisd(EIGEN_PI / 4, Eigen::Vector3d::UnitZ()));
     
     Eigen::Affine3d full_transform = 
         Eigen::Translation3d(1, 0, 0) *    // 最后平移
@@ -419,11 +444,11 @@ int main() {
     arm.printWorkspaceBoundary();
     
     // 设置关节角度（弧度）
-    std::vector<double> angles = {M_PI / 6, M_PI / 4, M_PI / 3};
+    std::vector<double> angles = {EIGEN_PI / 6, EIGEN_PI / 4, EIGEN_PI / 3};
     
     std::cout << "\n关节角度（度）:\n";
     for (size_t i = 0; i < angles.size(); ++i) {
-        std::cout << "  关节" << i+1 << ": " << angles[i] * 180 / M_PI << "°\n";
+        std::cout << "  关节" << i+1 << ": " << angles[i] * 180 / EIGEN_PI << "°\n";
     }
     
     // 计算末端位置
@@ -465,5 +490,7 @@ A: 变换从右向左执行。`T = T1 * T2` 表示先应用 T2，再应用 T1。
 **Q: 如何处理坐标系转换？**
 
 A: 使用变换矩阵的逆。如果 T_A_B 表示从B到A的变换，则 T_B_A = T_A_B.inverse()。
+
+> **对应官方文档**：[Geometry](https://eigen.tuxfamily.org/dox/group__TutorialGeometry.html) | [Space transformations](https://eigen.tuxfamily.org/dox/group__TutorialGeometry.html)
 
 ---

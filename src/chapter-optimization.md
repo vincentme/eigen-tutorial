@@ -7,8 +7,7 @@
 g++ -std=c++17 -O3 -march=native -DEIGEN_NO_DEBUG -DNDEBUG \
     -I/path/to/eigen -o optimized_app app.cpp
 
-# 如项目明确使用 OpenMP，并且你已经评估过线程模型与构建环境，
-# 再按需添加：
+# 如需启用多线程并行，添加 -fopenmp（详见 8.4 节）
 # g++ -std=c++17 -O3 -march=native -fopenmp -DEIGEN_NO_DEBUG -DNDEBUG \
 #     -I/path/to/eigen -o optimized_app app.cpp
 
@@ -29,7 +28,7 @@ g++ -std=c++17 -O3 -march=native -DEIGEN_NO_DEBUG -DNDEBUG \
 - 科学计算和数值分析：**不要使用**`-ffast-math`
 - 图形渲染、游戏开发：可以谨慎使用
 - 如需高性能，优先考虑`-O3 -march=native -ffp-contract=fast`
-- `-fopenmp` 不是 Eigen 项目的默认必选项，应仅在确实需要并行化且构建环境支持时启用
+- `-fopenmp`：仅在矩阵规模大且多核场景下启用（详见 [8.4 节](#84-多线程并行计算)）
 
 ### 向量化指令集
 
@@ -209,10 +208,15 @@ MatrixXd A, B;
 // 错误：auto保存的是表达式对象，不是结果
 auto sum = A + B;  // sum是表达式对象，不拥有数据
 
-// 如果A或B在sum求值前被修改，结果可能与“保存当时结果”的直觉不一致；
+// 如果A或B在sum求值前被修改，结果可能与"保存当时结果"的直觉不一致；
 // 如果它们已经销毁，则还可能出现悬空引用问题
 A(0, 0) = 999;     // 修改A
-MatrixXd C = sum;  // 这里得到的是“此刻再求值”的结果，而不是定义sum时就保存好的结果
+MatrixXd C = sum;  // 这里得到的是"此刻再求值"的结果，而不是定义sum时就保存好的结果
+
+// 更危险的场景：操作数是临时对象
+auto bad = (A + B) + MatrixXd::Ones(3, 3);
+// (A + B) 和 MatrixXd::Ones(3, 3) 作为临时对象在表达式结束后被销毁，
+// 此时 bad 内部引用的是已销毁的对象（悬空引用），后续求值导致未定义行为
 
 // 正确做法
 MatrixXd sum = A + B;  // 显式指定类型，立即求值
@@ -286,42 +290,126 @@ MatrixXd C = A * B;  // 可能触发重新分配
 
 ## 8.4 多线程并行计算
 
-### 启用OpenMP支持
+### 关于 OpenMP
+
+OpenMP（Open Multi-Processing）是一种面向共享内存多处理器系统的并行编程模型。它通过编译器指令（`#pragma omp`）在 C/C++/Fortran 代码中标记可并行区域，由编译器和运行时库自动将工作分配到多个线程。
+
+Eigen 内部利用 OpenMP 对部分运算进行自动并行化——无需修改算法代码，只需在编译时开启 OpenMP 支持即可。
+
+**何时启用 OpenMP**
+
+满足以下条件时，启用 OpenMP 能带来显著的性能提升：
+
+- 矩阵规模较大（矩阵乘法约 128×128 以上，LU 分解需更大规模）
+- 机器有多个物理核心（通常 ≥ 4 核）
+- 程序的计算瓶颈确实在矩阵运算上（而非 I/O 或其他逻辑）
+
+以下情况**不应启用**：
+
+- 矩阵规模很小（< 128×128）：线程调度开销超过并行收益
+- 单核或双核机器
+- 程序已在应用层使用 OpenMP 手动并行：与 Eigen 内部线程竞争导致性能下降
+- 程序需要在嵌套并行场景运行（Eigen 不支持嵌套 OpenMP）
+
+**线程模型**
+
+Eigen 使用 OpenMP 的默认线程池。线程数由以下优先级决定（高到低）：
+
+1. `Eigen::setNbThreads(n)` — Eigen API 显式设置
+2. `omp_set_num_threads(n)` — OpenMP API 设置
+3. `OMP_NUM_THREADS` 环境变量
+4. 系统默认（通常等于逻辑核心数）
+
+查询当前线程数：`Eigen::nbThreads()`
+
+> **重要警告**：OpenMP 报告的"核心数"通常是**逻辑核心数**（含超线程），而 Eigen 的矩阵乘法内核已几乎占满单个物理核心的算力。在超线程开启的机器上，线程数应设为**物理核心数**而非逻辑核心数，否则性能会因缓存污染和调度开销显著下降（可能慢数倍）。
+
+**构建环境要求**
+
+| 编译器 | 标志 | 说明 |
+| ------ | ---- | ---- |
+| GCC    | `-fopenmp` | 自动链接 `libgomp` |
+| Clang   | `-fopenmp` | 需安装 `libomp`（macOS: `brew install libomp`） |
+| MSVC   | `/openmp`  | Visual Studio 属性页中启用 |
+
+macOS 注意：Apple Clang 默认不带 OpenMP 运行时，需通过 Homebrew 安装 `libomp` 并添加 `-Xpreprocessor -fopenmp -lomp`。
+
+CMake 配置：
+```cmake
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(myapp PRIVATE OpenMP::OpenMP_CXX)
+endif()
+```
+
+**并行化支持范围**
+
+| 操作                                      | 并行化 | 最低有效规模 |
+| ----------------------------------------- | ------ | ------------ |
+| 稠密矩阵乘法 (`A * B`)                    | 全支持 | ~128×128     |
+| `PartialPivLU`                            | 全支持 | 较大矩阵     |
+| 行主序稀疏矩阵 × 稠密向量/矩阵            | 全支持 | 较大规模     |
+| `ConjugateGradient` (`Lower\|Upper`)       | 全支持 | 大规模迭代   |
+| `BiCGSTAB`（行主序稀疏矩阵）              | 全支持 | 大规模迭代   |
+| `LeastSquaresConjugateGradient`           | 全支持 | 大规模迭代   |
+| QR 分解                                   | 部分   | 较大矩阵     |
+| SVD / 特征值分解                          | 不支持 | —            |
+| `HouseholderQR` / `ColPivHouseholderQR`   | 不支持 | —            |
+
+**线程安全注意事项**
+
+- `Matrix::Random()` / `setRandom()` **不是线程安全的**（基于 `std::rand`）。多线程中生成随机矩阵需使用 C++11 `<random>` 引擎自行填充
+- 自定义标量类型在 OpenMP 环境下不应抛出异常，否则导致未定义行为
+- 应用层若已使用 OpenMP，应在 Eigen 侧禁用并行：`Eigen::setNbThreads(1)` 或定义 `EIGEN_DONT_PARALLELIZE`
+
+**与 `-fopenmp` 编译选项的关系**
+
+`-fopenmp` 是编译器和链接器选项，Eigen 仅在**检测到 `_OPENMP` 宏已定义**（即编译器开启了 OpenMP）时才会启用内部并行代码路径。不加 `-fopenmp` 编译的程序中，Eigen 的所有运算均为单线程执行。
+
+**禁用 Eigen 内部多线程**
 
 ```cpp
-// 编译时添加 -fopenmp
+// 运行时禁用
+Eigen::setNbThreads(1);
+
+// 或编译时全局禁用
+#define EIGEN_DONT_PARALLELIZE
+```
+
+### 并行化示例
+
+```cpp
 #include <Eigen/Dense>
 #include <iostream>
 
 int main() {
-    // 查看Eigen使用的线程数
-    std::cout << "Eigen使用的线程数: " << Eigen::nbThreads() << "\n";
-    
-    // 设置线程数
+    // 查看 Eigen 使用的线程数
+    std::cout << "Eigen 线程数: " << Eigen::nbThreads() << "\n";
+
+    // 显式设置线程数（设为物理核心数）
     Eigen::setNbThreads(4);
-    
-    // 或使用环境变量
-    // export OMP_NUM_THREADS=4
-    
-    // 大型矩阵运算会自动并行化
+
     Eigen::MatrixXd A = Eigen::MatrixXd::Random(2000, 2000);
     Eigen::MatrixXd B = Eigen::MatrixXd::Random(2000, 2000);
-    
-    Eigen::MatrixXd C = A * B;  // 自动使用多线程
-    
+
+    Eigen::MatrixXd C = A * B;  // 自动并行化
+
     return 0;
 }
 ```
 
-### 并行化策略
+```bash
+# 编译（GCC/Linux）
+g++ -std=c++17 -O3 -march=native -fopenmp \
+    -I/path/to/eigen -o parallel_demo parallel_demo.cpp
 
-| 操作       | 并行化支持 | 阈值     |
-| ---------- | ---------- | -------- |
-| 矩阵乘法   | 是         | ~128×128 |
-| 部分LU分解 | 是         | 较大矩阵 |
-| QR分解     | 部分       | 较大矩阵 |
-| SVD        | 否         | -        |
-| 特征值分解 | 否         | -        |
+# 编译（macOS + Homebrew libomp）
+g++ -std=c++17 -O3 -march=native -Xpreprocessor -fopenmp -lomp \
+    -I/path/to/eigen -o parallel_demo parallel_demo.cpp
+
+# 运行时控制线程数
+OMP_NUM_THREADS=4 ./parallel_demo
+```
 
 ## 8.5 向量化优化
 
@@ -416,21 +504,24 @@ std::cout << "向量化已启用\n";
 
 **Q: 程序崩溃提示"unaligned memory access"**
 
-A: 通常是结构体中包含Eigen类型导致：
+A: 这通常是结构体中包含固定大小可向量化 Eigen 类型导致的：
+
 ```cpp
 // 错误
 struct MyData {
-    Eigen::Vector4d v;  // 需要16字节对齐
+    Eigen::Vector4d v;  // 需要 16/32 字节对齐
     int x;
 };
 
 // 正确
 struct MyData {
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // 重载new以正确对齐
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // 重载 new 以正确对齐
     Eigen::Vector4d v;
     int x;
 };
 ```
+
+> **详细讨论**：对齐问题涉及四种根源（类成员、STL 容器、按值传递、GCC 栈对齐）和多种解决方案。完整的分类讲解、C++17 与旧标准的差异、验证方法，见 [调试与排错篇](chapter-debugging.md) 9.2 节。
 
 **Q: 如何禁用多线程？**
 
@@ -485,5 +576,7 @@ cuda_add_executable(my_cuda_app kernel.cu)
 1. **性能测试**: 比较固定大小和动态大小矩阵在不同尺寸下的性能差异。
 2. **内存分析**: 使用`noalias()`优化矩阵链式乘法，测量性能提升。
 3. **并行优化**: 测试不同线程数对大型矩阵乘法的影响，找到最优线程数。
+
+> **对应官方文档**：[Using Eigen in multi-threaded applications](https://eigen.tuxfamily.org/dox/TopicMultiThreading.html)
 
 ---

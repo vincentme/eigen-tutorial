@@ -11,12 +11,12 @@ Eigen提供多种求解器应对不同类型的线性系统。
 | `LLT`                            | 对称正定矩阵              | Cholesky 分解        | 已知矩阵为 SPD 时的首选，速度最快 |
 | `LDLT`                           | 对称正定 / 某些半定场景   | LDLT 分解            | 比 `LLT` 更稳健一些，适合某些半定或数值边界更敏感的情形 |
 | `PartialPivLU`                   | 一般可逆方阵              | 部分主元 LU          | 通用可逆方阵的常见选择，速度较快 |
-| `ColPivHouseholderQR`            | 任意矩阵                  | 列主元 QR            | 官方教程中的稳妥通用起点，适合作为默认求解器之一 |
-| `CompleteOrthogonalDecomposition`| 任意矩阵                  | 完全正交分解         | 最小二乘、秩亏、欠定问题的推荐默认选择 |
+| `ColPivHouseholderQR`            | 任意矩阵                  | 列主元 QR            | 一般线性求解的稳妥通用起点（非秩亏场景更轻量） |
+| `CompleteOrthogonalDecomposition`| 任意矩阵                  | 完全正交分解         | **秩亏/欠定/最小二乘的官方推荐默认选择**；也能处理一般求解 |
 | `HouseholderQR`                  | 满秩最小二乘问题          | Householder QR       | 更快，但不揭示秩，也不适合作为秩亏问题的默认方案 |
 | `BDCSVD` / `JacobiSVD`           | 任意矩阵                  | SVD                  | 最稳健，适合病态问题或需要奇异值/奇异向量时 |
-| `FullPivLU`                      | 任意矩阵                  | 全主元 LU            | 更偏教学或调试用途，通常比 `PartialPivLU` 慢很多 |
-| `FullPivHouseholderQR`           | 任意矩阵                  | 全主元 QR            | 更偏教学或调试用途，通常比 `ColPivHouseholderQR` 慢很多 |
+| `FullPivLU`                      | 任意矩阵                  | 全主元 LU            | 可靠性最高，可计算 kernel/image/秩，但速度慢于 `PartialPivLU` |
+| `FullPivHouseholderQR`           | 任意矩阵                  | 全主元 QR            | 可靠性最高，可计算 kernel/image/秩，但速度慢于 `ColPivHouseholderQR` |
 
 ### 线性方程组求解示例
 
@@ -89,7 +89,7 @@ int main() {
     Eigen::VectorXd x3 = A.completeOrthogonalDecomposition().solve(b);
     
     // ========== 方法4：SVD（最稳健，但通常更慢）==========
-    // 适合病态问题，或你确实还需要奇异值/奇异向量
+    // 适合病态问题，或需要奇异值/奇异向量
     // 在 Eigen 5.x 中，thin/full U/V 的运行时选项已弃用，推荐使用编译时模板参数
     Eigen::VectorXd x4 = A.bdcSvd<Eigen::ComputeThinU | Eigen::ComputeThinV>().solve(b);
     
@@ -199,18 +199,20 @@ int main() {
     std::cout << "奇异值:\n" << singular_values << "\n\n";
     
     // ========== 矩阵伪逆（Moore-Penrose逆）==========
-    // 对于病态或秩亏矩阵
-    // 使用相对容差（相对于最大奇异值），而非绝对容差
-    double tolerance = 1e-10 * singular_values(0);  // 相对于最大奇异值
-    Eigen::VectorXd singular_values_inv = singular_values;
-    for (int i = 0; i < singular_values.size(); ++i) {
-        if (singular_values(i) > tolerance)
-            singular_values_inv(i) = 1.0 / singular_values(i);
-        else
-            singular_values_inv(i) = 0;
-    }
+    // 方式1：推荐使用 SVD 的 solve() 方法获得伪逆解
+    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(A.rows(), A.rows());
+    Eigen::MatrixXd A_pinv = svd1.solve(I);  // 利用 SVD 构造伪逆
     
-    Eigen::MatrixXd A_pinv = V * singular_values_inv.asDiagonal() * U.transpose();
+    // 方式2：手动构造（仅作学习参考）
+    // double tolerance = 1e-10 * singular_values(0);
+    // Eigen::VectorXd singular_values_inv = singular_values;
+    // for (int i = 0; i < singular_values.size(); ++i) {
+    //     if (singular_values(i) > tolerance)
+    //         singular_values_inv(i) = 1.0 / singular_values(i);
+    //     else
+    //         singular_values_inv(i) = 0;
+    // }
+    // Eigen::MatrixXd A_pinv = V * singular_values_inv.asDiagonal() * U.transpose();
     
     // ========== 矩阵秩 ==========
     int rank = svd1.rank();
@@ -234,14 +236,14 @@ int main() {
 }
 ```
 
-**SVD `info()` 方法说明**：
+**`info()` 方法说明**（SVD 分解仅返回 `Success` 或 `NoConvergence`，为完整参考，此处列出所有分解可能返回的状态）：
 
-| 返回值                  | 说明                     |
-| ----------------------- | ------------------------ |
-| `Eigen::Success`        | 分解成功完成             |
-| `Eigen::NumericalIssue` | 数值问题，结果可能不准确 |
-| `Eigen::NoConvergence`  | 迭代未收敛               |
-| `Eigen::InvalidInput`   | 输入矩阵无效             |
+| 返回值                  | 说明                     | 适用分解           |
+| ----------------------- | ------------------------ | ------------------ |
+| `Eigen::Success`        | 分解成功完成             | 所有分解           |
+| `Eigen::NumericalIssue` | 数值问题，结果可能不准确 | Cholesky 等        |
+| `Eigen::NoConvergence`  | 迭代未收敛               | SVD、特征值分解等  |
+| `Eigen::InvalidInput`   | 输入矩阵无效             | 部分分解           |
 
 > **最佳实践**：在生产代码中始终检查 `info()` 返回值，特别是在处理用户输入或不确定的矩阵时。
 
@@ -262,6 +264,11 @@ int main() {
     Eigen::Matrix3d L = llt.matrixL();
     std::cout << "Cholesky L:\n" << L << "\n";
     std::cout << "验证 L*L^T:\n" << L * L.transpose() << "\n\n";
+
+    // ========== 原地分解（Inplace Decomposition）：适合已分配好内存的场景 ==========
+    Eigen::Matrix3d M = A;
+    Eigen::LLT<Eigen::Ref<Eigen::Matrix3d>> llt_inplace(M);  // 在 M 的内存上原地分解
+    // 注意：M 会被修改，原矩阵内容不再可用
     
     // ========== LDL^T分解（适合对称正定，也常用于某些半定/边界场景）==========
     Eigen::LDLT<Eigen::Matrix3d> ldlt(A);
@@ -282,5 +289,7 @@ int main() {
     return 0;
 }
 ```
+
+> **对应官方文档**：[Linear algebra and decompositions](https://eigen.tuxfamily.org/dox/group__TutorialLinearAlgebra.html) | [Catalogue of dense decompositions](https://eigen.tuxfamily.org/dox/group__TopicLinearAlgebraDecompositions.html)
 
 ---

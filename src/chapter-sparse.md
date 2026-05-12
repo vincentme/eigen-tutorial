@@ -16,11 +16,11 @@
 | **运算效率** | BLAS优化，缓存友好 | 特殊算法，减少零运算   |
 | **适用场景** | 大部分元素非零     | 非零元素较少、稀疏结构明显 |
 
-**选择建议**：
+**选择指南**：
 
 下面这些阈值只适合作为**粗略经验**，不是通用定律。是否该用稀疏矩阵，除了非零元素占比，还取决于：
 
-- 你的主要操作是矩阵-向量乘、矩阵分解，还是频繁随机访问
+- 主要操作是矩阵-向量乘、矩阵分解，还是频繁随机访问
 - 稀疏结构是否规则（如带状、块状、图结构）
 - 是否有适合的稀疏求解器与预处理器
 - 实际平台上的基准测试结果
@@ -36,6 +36,8 @@
 Eigen支持两种主要的稀疏矩阵存储格式：
 
 **1. 列压缩存储（CSC，默认）**
+
+> 以下为简化示意图（Eigen 实际在非压缩模式下使用 4 个紧凑数组：`Values`、`InnerIndices`、`OuterStarts`、`InnerNNZs`）。
 
 ```
 原始矩阵:          CSC存储:
@@ -174,11 +176,12 @@ int main() {
 }
 ```
 
-### 7.2.2 稀疏线性求解器
+### 7.2.2 稀疏直接求解器
+
+直接求解器对中小规模问题（通常 < 10000 阶）效率高且结果可靠。以下示例展示主要直接求解器的用法：
 
 ```cpp
 #include <Eigen/Sparse>
-#include <Eigen/IterativeLinearSolvers>
 #include <iostream>
 
 int main() {
@@ -204,8 +207,6 @@ int main() {
     std::cout << "矩阵大小: " << n * n << " x " << n * n << "\n";
     std::cout << "非零元素: " << A.nonZeros() << "\n\n";
     
-    // ========== 直接求解器 ==========
-    
     // SimplicialLLT：对称正定矩阵，Cholesky分解
     Eigen::SimplicialLLT<Eigen::SparseMatrix<double>> llt;
     llt.compute(A);
@@ -222,7 +223,7 @@ int main() {
         std::cout << "SimplicialLDLT 残差: " << (A * x - b).norm() / b.norm() << "\n";
     }
     
-    // SparseLU：通用求解器，非对称矩阵
+    // SparseLU：通用求解器，非对称方阵
     Eigen::SparseLU<Eigen::SparseMatrix<double>> sparse_lu;
     sparse_lu.compute(A);
     if (sparse_lu.info() == Eigen::Success) {
@@ -230,44 +231,19 @@ int main() {
         std::cout << "SparseLU 残差: " << (A * x - b).norm() / b.norm() << "\n";
     }
     
-    // ========== 迭代求解器 ==========
-    
-    // 共轭梯度法（CG）：对称正定矩阵
-    Eigen::ConjugateGradient<Eigen::SparseMatrix<double>> cg;
-    cg.compute(A);
-    cg.setTolerance(1e-10);
-    cg.setMaxIterations(1000);
-    x = cg.solve(b);
-    
-    std::cout << "\n共轭梯度法:\n";
-    std::cout << "  迭代次数: " << cg.iterations() << "\n";
-    std::cout << "  估计误差: " << cg.error() << "\n";
-    std::cout << "  残差: " << (A * x - b).norm() / b.norm() << "\n";
-    
-    // BiCGSTAB：非对称矩阵
-    Eigen::BiCGSTAB<Eigen::SparseMatrix<double>> bicg;
-    bicg.compute(A);
-    bicg.setTolerance(1e-10);
-    x = bicg.solve(b);
-    
-    std::cout << "\nBiCGSTAB:\n";
-    std::cout << "  迭代次数: " << bicg.iterations() << "\n";
-    std::cout << "  残差: " << (A * x - b).norm() / b.norm() << "\n";
-    
-    // ========== 带预处理的迭代求解器 ==========
-    
-    // 不完全Cholesky预处理
-    using Preconditioner = Eigen::IncompleteCholesky<double>;
-    Eigen::ConjugateGradient<Eigen::SparseMatrix<double>, Eigen::Lower | Eigen::Upper, Preconditioner> cg_precond;
-    cg_precond.compute(A);
-    x = cg_precond.solve(b);
-    
-    std::cout << "\n预处理CG:\n";
-    std::cout << "  迭代次数: " << cg_precond.iterations() << " (预处理加速)\n";
+    // SparseQR：适用于矩形矩阵和最小二乘问题
+    Eigen::SparseQR<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>> sparse_qr;
+    sparse_qr.compute(A);
+    if (sparse_qr.info() == Eigen::Success) {
+        x = sparse_qr.solve(b);
+        std::cout << "SparseQR 残差: " << (A * x - b).norm() / b.norm() << "\n";
+    }
     
     return 0;
 }
 ```
+
+> **迭代求解器和预处理技术**见 [7.3 节](#73-迭代求解器)，适合大规模问题。
 
 ### 7.2.3 稀疏求解器选择指南
 
@@ -404,14 +380,7 @@ A: 检查以下几点：
 
 **Q: 如何选择合适的求解器？**
 
-A: 决策流程：
-```
-矩阵是否正定？
-  ├─ 是 → 使用LLT（最快）或LDLT
-  └─ 否 → 需要最小二乘？
-           ├─ 是 → 使用QR或SVD
-           └─ 否 → 使用LU
-```
+A: 参考上方 [7.2.3 节的决策流程](#723-稀疏求解器选择指南)。
 
 **Q: 特征值计算结果与MATLAB不同？**
 
@@ -426,5 +395,7 @@ assert((A * v - lambda * v).norm() < 1e-10);
 1. **线性系统**: 实现一个函数，使用LU分解求解多个右端项的线性系统。
 2. **PCA实现**: 给定数据矩阵X，实现主成分分析（PCA），返回主成分和方差解释率。
 3. **矩阵平方根**: 利用特征值分解计算正定矩阵的平方根。
+
+> **对应官方文档**：[Sparse matrix manipulations](https://eigen.tuxfamily.org/dox/group__TutorialSparse.html)
 
 ---
